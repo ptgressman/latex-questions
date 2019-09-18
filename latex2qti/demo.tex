@@ -1,0 +1,63 @@
+\documentclass{article}
+
+\usepackage{questions}  
+
+\begin{document}
+
+\section*{Conversion: \LaTeX \ to QTI Quiz Bank}
+
+Keep it {\bf extremely simple.}
+Your document must compile without any packages or macros aside from ``questions'' and the basic AMS math packages.   Questions, comments, etc., must be plain text with the following possible enhancements:
+ \begin{itemize}
+ \item Math that is either inline or is displayed. Automatic equation numbering is not supported. The align environment is not allowed (but aligned is). %Any other math you can do without packages/macros will work (e.g. {\tt {$\backslash$}tag{}}). 
+ \item Basic escape characters for \textasciitilde \textasciicircum \textbackslash
+\& \% \$ \# \_ \{ \}
+ \item Text can be {\it italic} or {\bf bold} or both if \textbf{\textit{clearly nested like this.}}
+ \end{itemize}
+\LaTeX~comments are fine and quotation marks are fixed (and braces are stripped). After that, everything else will be literally transcribed.  {\bf NOTE: Inside the question environment, the entire question statement must come before everything else, i.e., answer and/or comment environments.} 
+
+Also, as of this version, the image environment is not supported for conversion to QTI.
+
+All of this material outside of the question environments will be stripped by the conversion process.
+
+\vspace{12pt}
+
+\begin{questionbank}[My first import bank]  %Questions to be imported must be inside question banks.
+
+\begin{question}[My first question]
+File Upload Question: What is the \textbf{airspeed \textit{velocity}} of an unladen swallow?  %Questions with no multiplechoice or shortanswer environment automatically become file upload questions and are not allowed to have praise or feedback (comments are allowed).
+\begin{comments}
+Only general comments are allowed in this format. All users see this after submitting files. Comments are optional.
+\end{comments}
+\end{question}
+
+\begin{question}[Multiple Choice Centroid Question]
+Compute the {\it centroid} of the region bounded by the inequalities $$-2 \leq x \leq 0 \qquad \mbox{ and } \qquad {3x^2-\frac{13}{2}} \leq y \leq {3x^2-\frac{11}{2}}.$$
+\begin{multiplechoice}
+\choice{$\displaystyle \left(-\frac{3}{2},-3 \right)$}
+\choice{$\displaystyle \left(-1,-3 \right)$}
+\choice{$\displaystyle \left(-\frac{1}{2},-3 \right)$} \choicebreak %\choicebreak is an optional instruction to make a new line and is purely for improving the LaTeX output. It is ignored in the conversion process.
+\choice{$\displaystyle \left(-\frac{3}{2},-2 \right)$}
+\choice[correct]{$\displaystyle \left(-1,-2 \right)$} % The [correct] option identifies the unique correct answer. Canvas does not allow multiple correct choices.
+\choice{$\displaystyle \left(-\frac{1}{2},-2 \right)$}
+\end{multiplechoice}
+\end{question}
+
+\begin{question}[This is My Short Answer Question]
+Compute $1 + 2$. Use arithmetic in $\mathbb C$.
+\begin{shortanswer} %Inside the shortanswer environment, use \choice{...} to identify all acceptable responses
+\choice{3} \choice{3.0} \choice{three}
+\end{shortanswer}
+\begin{praise}
+Correct answers can receive praise!
+\end{praise}
+\begin{feedback}
+Incorrect answers can receive feedback: $1 + 2 = 3$.
+\end{feedback}
+\end{question}
+
+
+
+\end{questionbank}
+
+\end{document}
