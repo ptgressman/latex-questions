@@ -1,0 +1,156 @@
+\ProvidesPackage{questions}
+\RequirePackage{amsmath}
+\RequirePackage{amssymb}
+\RequirePackage{wrapfig}
+\RequirePackage{etex}
+\RequirePackage{environ}
+\RequirePackage{refcount}
+
+\newdimen\choiceskipleft
+\newdimen\choiceskiptop
+\newdimen\choicegapmin
+\newdimen\choicelinespace
+\newdimen\exam@oldls
+\newdimen\questiongapmin
+
+ \setlength{\choicegapmin}{12pt}		%Minimum horizontal space between multchoice responses
+\setlength{\choiceskipleft}{0pt}			%Left side indentation for multchoice responses
+\setlength{\choiceskiptop}{5pt}			%Vertical gap between question statement and multchoice responses
+\setlength{\choicelinespace}{5pt}		%Vertical spacing between multiple lines of multchoice responeses
+\setlength{\questiongapmin}{56pt}		%Minimum vertical spacing between different questions
+
+
+
+\newif\ifshow@answers\show@answerstrue
+\newif\ifshow@qlabels\show@qlabelstrue
+\newif\ifshow@feedbacklabels\show@feedbacklabelstrue
+\newif\ifseparate@pages\separate@pagesfalse
+\newif\ifshowq@immediate\showq@immediatetrue
+\newif\ifis@exam\is@examfalse
+
+\DeclareOption{exam}{				% option "exam" puts each question on its own page and suppresses
+\show@answersfalse				% all content except for the question itself (i.e., no correct answers,
+\show@qlabelsfalse					% comments, keywords, etc.)
+\show@feedbacklabelsfalse
+\separate@pagestrue
+\is@examtrue
+}
+
+\DeclareOption{key}{					% option "key" suppresses question names, notes, and keywords but
+\show@answerstrue					% shows everything else. multiple questions are allowed on a page if
+\show@qlabelsfalse					% there's room.
+\show@feedbacklabelsfalse
+}
+
+\DeclareOption{byqref}{
+\showq@immediatefalse
+}
+
+\ProcessOptions\relax
+
+\raggedbottom
+\reversemarginpar
+
+\newcounter{mc@choicenumber}
+\newcounter{bank@questionno}
+\setcounter{bank@questionno}{0}
+
+\newenvironment{questionbank}[1][NoTitle]{\par\bgroup\ifshow@qlabels\noindent\textbf{\Large Question Bank: #1}\par\vspace{\questiongapmin}\fi\setcounter{bank@questionno}{0}}{\egroup\par\newpage}
+
+
+\newenvironment{simplequestion}[1][NoTitle]{\filbreak\par\stepcounter{bank@questionno}\setlength{\intextsep}{0pt}\ifseparate@pages\newpage\fi\par\bgroup\noindent\marginpar{\raggedleft\noindent\arabic{bank@questionno}.}\ifshow@qlabels\fbox{Question Name: #1}\par\noindent\noindent\fi\begin{minipage}[t]{\textwidth}
+\ignorespaces\ignorespaces}{\end{minipage}
+\egroup\par\vspace{\questiongapmin}\vfill}
+
+
+\newenvironment{multiplechoice}
+{\vspace{\choiceskiptop}%
+\setcounter{mc@choicenumber}{0}%
+\par\lineskip=\choicelinespace\setlength{\leftskip}{\choiceskipleft}\noindent\ignorespaces}{\egroup\par}
+
+\newenvironment{shortanswer}
+{\vspace{\choiceskiptop}%
+\setcounter{mc@choicenumber}{0}%
+\par\lineskip=\choicelinespace\setlength{\leftskip}{\choiceskipleft}\noindent\ignorespaces}{\egroup\par}
+
+\def\@mcname{multiplechoice}
+\def\@saname{shortanswer}
+\def\@correct{correct}
+
+\newcommand{\choice}[2][]{%
+\ifnum\value{mc@choicenumber}>0\unskip\egroup\hspace{\choicegapmin}\hfill\mbox\bgroup\else\noindent\mbox\bgroup\fi%
+\stepcounter{mc@choicenumber}%
+\ifx\@mcname\@currenvir\ifshow@answers\def\@comparator{#1}%
+\ifx\@comparator\@correct\textbf{(\alph{mc@choicenumber}*)}~#2\else{(\alph{mc@choicenumber})~#2}\fi\else{(\alph{mc@choicenumber})~#2}\fi\else\ifshow@answers{\bf TextEntry: }#2\fi\fi%
+\ignorespaces}
+
+ \newcommand{\choicebreak}{\egroup\unskip\newline\bgroup}
+ 
+ 
+ \ifshow@answers
+ \ifshow@feedbacklabels
+\newenvironment{feedback}{\vspace{\choiceskiptop}\par\noindent{\bf Feedback:~}}{\par}
+\newenvironment{praise}{\vspace{\choiceskiptop}\par\noindent{\bf Praise:~}}{\par}
+\newenvironment{comments}{\vspace{\choiceskiptop}\par\noindent{\bf General Comments:~}}{\par}
+\newenvironment{notes}{\vspace{\choiceskiptop}\par\noindent{\bf Notes:~}}{\par}
+\newenvironment{keywords}{\vspace{\choiceskiptop}\par\noindent{\bf Keywords:~}}{\par}
+\else
+\newenvironment{feedback}{\vspace{\choiceskiptop}\par\noindent{\bf If You Were Incorrect:~}}{\par}
+\newenvironment{praise}{\vspace{\choiceskiptop}\par\noindent{\bf If You Were Correct:~}}{\par}
+\newenvironment{comments}{\vspace{\choiceskiptop}\par\noindent{\bf General Comments:~}}{\par}
+\NewEnviron{notes}{}{}
+\NewEnviron{keywords}{}{}
+\fi
+\else
+\NewEnviron{feedback}{}{}
+\NewEnviron{praise}{}{}
+\NewEnviron{comments}{}{}
+\NewEnviron{notes}{}{}
+\NewEnviron{keywords}{}{}
+\fi
+
+
+\newcommand{\scratchbreak}{\ifis@exam\newpage \hphantom{Howdy} \newpage\fi}
+
+\newcommand{\tagbankitem}[1]{\noindent Tag:~#1 \hfill}
+
+\def\image{\vspace{-1.6\baselineskip}\wrapfigure{l}{0pt}}
+\def\endimage{\endwrapfigure \par \vspace{\baselineskip}}
+
+% The code below stores named questions as labelled tokens so that they can be recalled and rendered later
+% by a call to the macro \qref{name}.  To be precise, the contents of the \begin{question}...\end{question}
+% environment are stored. If the package option "byqref" is specified, the question itself is *not* rendered at
+% the time \begin{question}...\end{question} is encountered. Otherwise the question is rendered *after* the
+% environment contents are stored.  Later calls to \qref{name} recall the contents of the environment and wrap them
+% in the \begin{simplequestion}...\end{simplequestion} environment for proper rendering.
+% Note that \qref{name} works like \eqref{name} and might need you to compile your document twice. The first 
+% time you'll get question marks "??".
+% Source adapted from https://tex.stackexchange.com/questions/184503/collecting-contents-of-environment-and-store-them-for-later-retrieval
+
+\globtoksblk\saved@envtoks{5000}
+\newcounter{saved@envcount}
+\newcommand{\qref}[1]{%
+  \begin{simplequestion}[#1]\the\toks\numexpr\saved@envtoks+\getrefnumber{#1}\relax\end{simplequestion}
+}
+
+\NewEnviron{question}[1][]{%
+  \refstepcounter{saved@envcount}%
+  \if\relax\detokenize{#1}\relax
+  \else
+    \label{#1}%
+  \fi
+  \global\toks\numexpr\saved@envtoks+\value{saved@envcount}\relax=\expandafter{\BODY}%
+  \ifshowq@immediate\begin{simplequestion}[#1]\BODY\end{simplequestion}\fi
+}
+\toks\saved@envtoks={??}
+
+
+
+
+
+
+
+
+ 
+
+
