@@ -25,7 +25,7 @@ How to Get Imported Questions: (Note: All instructions are for old quizzes ca. s
 * Navigate to Quizzes on left-hand bar
 * Click on the three dots button next to the +Quiz button near the top of the page
 * Select "Manage Question Banks"
-* When the page loads, your imported banks will be among those listed if your conversion succeeded.
+* When the page loads, your imported banks will be among those listed if your import succeeded.
 
 
 
