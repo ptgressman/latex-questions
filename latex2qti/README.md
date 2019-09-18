@@ -4,7 +4,7 @@ To Compile: g++ conversion.cpp
 
 To Run Output: ./a.out -V demo.tex   (-V is for verbose output. More -VV through -VVVVV give increasing levels of verbosity)
 
-Will It Work: If you want to write your own questions, you should first LaTeX compile your .tex file to check for errors. If it doesn't
+Will It Work: If you want to write your own questions, you should first LaTeX compile your .tex file to check for errors. *Don't forget to put questions.sty someplace accessible, e.g., in the same directory as your source file* If it doesn't
 LaTeX properly, then it won't convert properly, either. The conversion process gives rudimentary error information but it's not
 especially detailed in that regard and I don't guarantee that it won't crash if your file has LaTeX syntax errors. As of this version, there is no implemented import for questions with images.
 
