@@ -366,8 +366,8 @@ string manifest(string filename)
     output = output + "  </metadata>\n";
     output = output + "  <organizations/>\n";
     output = output + "  <resources>\n";
-    output = output + "    <resource type=\"imsqti_xmlv1p2\">\n";
-    output = output + "      <file href=\"" + filename +"\"/>\n";
+    output = output + "    <resource identifier=\"latex2qticontent\" href=\"" + filename +"\" type=\"imsqti_xmlv1p2\">\n";
+    output = output + "      <file href=\"" + filename +"\"/>\n"; // Here you would add more lines for local refs to images, etc.
     output = output + "    </resource>\n";
     output = output + "  </resources>\n";
     output = output + "</manifest>\n";
