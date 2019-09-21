@@ -1,5 +1,5 @@
 //
-//  nodetest.cpp
+//  conversion.cpp
 //  
 //
 //  Created by Philip Gressman on 8/30/19.
@@ -430,36 +430,5 @@ int main(int argc, char * argv [])
     
     
     return 0;
-    
-    treeobj mytree;
-    treeobj *whereami;
-    
-    mytree.initialize();
-    whereami = mytree.add_bank("ID01","My First Bank");
-    
-    whereami->add_item("ID02","My First Question","short_answer_question")
-    ->record_material("How many licks does it take?")
-    ->prepare_for_responses("general_fb","correct_fb","incorrect_fb")
-    ->record_itemfeedback("general_fb","This is general feedback")
-    ->record_itemfeedback("correct_fb","This is feedback for correct")
-    ->record_itemfeedback("incorrect_fb","This is feedback for incorrect")
-    ->record_response("R01","one",true)
-    ->record_response("R02","1",true);
-    
-    whereami->add_item("ID04","My Second Question","multiple_choice_question")
-    ->record_material("How many licks does it take?")
-    ->prepare_for_responses("general_fb","correct_fb","incorrect_fb")
-    ->record_itemfeedback("general_fb","This is general feedback")
-    ->record_itemfeedback("correct_fb","This is feedback for correct")
-    ->record_itemfeedback("incorrect_fb","This is feedback for incorrect")
-    ->record_response("R01","one",true)
-    ->record_response("R02","two",false);
-    
-    mytree.delete_children();
-
-    
-    return 0 ;
-    
-
     
 }
