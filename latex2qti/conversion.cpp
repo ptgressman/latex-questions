@@ -422,7 +422,8 @@ int main(int argc, char * argv [])
     getit.message = manifest(outname);
     world.handle(getit);
     
-    string command = "tar -czf canvasautogenbank.zip imsmanifest.xml ";
+    //string command = "tar -czf canvasautogenbank.zip imsmanifest.xml ";
+    string command = "zip canvasautogenbank.zip imsmanifest.xml ";
     command += outname;
     const char *cmd = command.c_str();
     system(cmd);
