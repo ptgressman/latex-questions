@@ -115,12 +115,14 @@
  
  \ifshow@answers
  \ifshow@feedbacklabels
+\newenvironment{answer}{\vspace{\choiceskiptop}\par\noindent{\bf Answer:~}}{\par} 
 \newenvironment{feedback}{\vspace{\choiceskiptop}\par\noindent{\bf Feedback:~}}{\par}
 \newenvironment{praise}{\vspace{\choiceskiptop}\par\noindent{\bf Praise:~}}{\par}
 \newenvironment{comments}{\vspace{\choiceskiptop}\par\noindent{\bf General Comments:~}}{\par}
 \newenvironment{notes}{\vspace{\choiceskiptop}\par\noindent{\bf Notes:~}}{\par}
 \newenvironment{keywords}{\vspace{\choiceskiptop}\par\noindent{\bf Keywords:~}}{\par}
 \else
+\newenvironment{answer}{\vspace{\choiceskiptop}\par\noindent{\bf Answer:~}}{\par}
 \newenvironment{feedback}{\vspace{\choiceskiptop}\par\noindent{\bf If You Were Incorrect:~}}{\par}
 \newenvironment{praise}{\vspace{\choiceskiptop}\par\noindent{\bf If You Were Correct:~}}{\par}
 \newenvironment{comments}{\vspace{\choiceskiptop}\par\noindent{\bf General Comments:~}}{\par}
@@ -128,6 +130,7 @@
 \NewEnviron{keywords}{}{}
 \fi
 \else
+\NewEnviron{answer}{}{}
 \NewEnviron{feedback}{}{}
 \NewEnviron{praise}{}{}
 \NewEnviron{comments}{}{}
