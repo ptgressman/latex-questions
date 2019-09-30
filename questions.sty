@@ -5,6 +5,7 @@
 \RequirePackage{etex}
 \RequirePackage{environ}
 \RequirePackage{refcount}
+\RequirePackage{graphicx}
 
 \newdimen\choiceskipleft
 \newdimen\choiceskiptop
@@ -27,6 +28,9 @@
 \newif\ifseparate@pages\separate@pagesfalse
 \newif\ifshowq@immediate\showq@immediatetrue
 \newif\ifis@exam\is@examfalse
+\newif\ifshow@online\show@onlinetrue
+\newif\ifshow@offline\show@offlinetrue
+\newif\ifshow@onofflabel\show@onofflabeltrue
 
 \DeclareOption{exam}{				% option "exam" puts each question on its own page and suppresses
 \show@answersfalse				% all content except for the question itself (i.e., no correct answers,
@@ -34,19 +38,41 @@
 \show@feedbacklabelsfalse
 \separate@pagestrue
 \is@examtrue
+\show@onlinefalse
+\show@onofflabelfalse
 }
 
 \DeclareOption{key}{					% option "key" suppresses question names, notes, and keywords but
 \show@answerstrue					% shows everything else. multiple questions are allowed on a page if
 \show@qlabelsfalse					% there's room.
 \show@feedbacklabelsfalse
+\show@onlinefalse
+\show@onofflabelfalse
 }
 
 \DeclareOption{byqref}{
 \showq@immediatefalse
 }
 
+\DeclareOption{online}{
+\show@onlinetrue
+\show@offlinefalse
+}
+
 \ProcessOptions\relax
+
+\ifshow@online
+\newcommand{\online}[1]{{\ifshow@onofflabel{\textbf{[Online:}~}\fi{#1}\ifshow@onofflabel\textbf{]}\fi}}
+\else
+\newcommand{\online}[1]{\ignorespaces}
+\fi
+\ifshow@offline
+\newcommand{\offline}[1]{{\ifshow@onofflabel{\textbf{[Offline:}~}\fi{#1}\ifshow@onofflabel\textbf{]}\fi}}
+\else
+\newcommand{\offline}[1]{\ignorespaces}
+\fi
+\newcommand{\bigmath}[1]{\(\displaystyle #1\)}
+
 
 \raggedbottom
 \reversemarginpar
