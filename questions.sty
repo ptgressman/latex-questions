@@ -13,13 +13,14 @@
 \newdimen\choicelinespace
 \newdimen\exam@oldls
 \newdimen\questiongapmin
+\newdimen\bankgapmin
 
  \setlength{\choicegapmin}{12pt}		%Minimum horizontal space between multchoice responses
 \setlength{\choiceskipleft}{0pt}			%Left side indentation for multchoice responses
 \setlength{\choiceskiptop}{5pt}			%Vertical gap between question statement and multchoice responses
 \setlength{\choicelinespace}{5pt}		%Vertical spacing between multiple lines of multchoice responeses
-\setlength{\questiongapmin}{56pt}		%Minimum vertical spacing between different questions
-
+\setlength{\questiongapmin}{36pt}		%Minimum vertical spacing between different questions
+\setlength{\bankgapmin}{24pt}
 
 
 \newif\ifshow@answers\show@answerstrue
@@ -81,12 +82,12 @@
 \newcounter{bank@questionno}
 \setcounter{bank@questionno}{0}
 
-\newenvironment{questionbank}[1][NoTitle]{\par\bgroup\ifshow@qlabels\noindent\textbf{\Large Question Bank: #1}\par\vspace{\questiongapmin}\fi\setcounter{bank@questionno}{0}}{\egroup\par\newpage}
+\newenvironment{questionbank}[1][NoTitle]{\par\bgroup\ifshow@qlabels\noindent\textbf{\Large Question Bank: #1}\par\vspace{\bankgapmin}\fi\setcounter{bank@questionno}{0}}{\egroup\par\newpage}
 
 
-\newenvironment{simplequestion}[1][NoTitle]{\filbreak\par\stepcounter{bank@questionno}\setlength{\intextsep}{0pt}\ifseparate@pages\newpage\fi\par\bgroup\noindent\marginpar{\raggedleft\noindent\arabic{bank@questionno}.}\ifshow@qlabels\fbox{Question Name: #1}\par\noindent\noindent\fi\begin{minipage}[t]{\textwidth}
+\newenvironment{simplequestion}[1][NoTitle]{\filbreak\par\stepcounter{bank@questionno}\setlength{\intextsep}{0pt}\ifseparate@pages\newpage\fi\par\bgroup\noindent\marginpar{\raggedleft\noindent\arabic{bank@questionno}.}\ifshow@qlabels\fbox{\textbf{Title:} #1}\par\noindent\noindent\fi\begin{minipage}[t]{\textwidth}
 \ignorespaces\ignorespaces}{\end{minipage}
-\egroup\par\vspace{\questiongapmin}\vfill}
+\egroup\par\pagebreak[3]\vspace{\questiongapmin}\vfill}
 
 
 \newenvironment{multiplechoice}
@@ -138,10 +139,16 @@
 \NewEnviron{keywords}{}{}
 \fi
 
+\ifshow@qlabels
+\newenvironment{type}{\par\vspace{-19pt}\hfill{\bf Type:~}}{\par\vspace{6pt}}
+\else
+\NewEnviron{type}{}{}
+\fi
+
 
 \newcommand{\scratchbreak}{\ifis@exam\newpage \hphantom{Howdy} \newpage\fi}
 
-\newcommand{\tagbankitem}[1]{\noindent Tag:~#1 \hfill}
+%\newcommand{\tagbankitem}[1]{\noindent Tag:~#1 \hfill}
 
 \def\image{\vspace{-1.6\baselineskip}\wrapfigure{l}{0pt}}
 \def\endimage{\endwrapfigure \par \vspace{\baselineskip}}
