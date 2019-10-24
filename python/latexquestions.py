@@ -2,7 +2,8 @@ import re,os
 import cgi,urllib
 import imsqtiwriter,zipfile
 from datetime import datetime
-
+import random
+import copy
 
 #Collects expressions inside braces: {expr1} ... {exprn}
 #Terminates when things come between the braces
@@ -228,6 +229,7 @@ _HTML_diac_latexmk = ["`","'","\"","^","~","=","."]
 _HTML_diac_accname = ["grave","acute","uml","circ","tilde","macr","dot"]
 _HTML_diac_moremk  = ["u","v","c"]
 _HTML_diac_morenm  = ["breve","caron","cedil"]
+print("INFO  : HTML Diacritics initialized.")
 for index in range(len(_HTML_diac_latexmk)):
     _HTML_start_macros.append(RegexpMacro(r"(?<!\\)\\"+
     re.escape(_HTML_diac_latexmk[index])+r"\s*{\s*(\w)\s*}","&\\1"+_HTML_diac_accname[index] + ";"))
@@ -238,7 +240,7 @@ for index in range(len(_HTML_diac_moremk)):
     re.escape(_HTML_diac_moremk[index])+r"\s*{\s*(\w)\s*}","&\\1"+_HTML_diac_morenm[index] + ";"))
 
 # Do these once in order; they may span across math mode. Nothing here should
-# Be expected to affect math mode. SO: \mbox inside math mode isn't banned, but
+# Be expected to affect math mode. SO: \mbox or \text inside math mode isn't banned, but
 # it should not include any text modifiers like bold or italic, etc.
 _HTML_global_macros = [
 RegexpMacro(r"\\begin{enumerate}\s*\\item","</" + _HTML_maintag + "><ol><li><" + _HTML_maintag + ">"),
@@ -362,19 +364,33 @@ def LaTeX_to_HTML(data,mathasimg = False):
 
 
 class LaTeXRaw(object):
-    _system_macros_mandatory = []
+    _system_macros_mandatory = [
+        # Strip comments; they are absolutely capable of causing problems if left intact
+        # Convert windows line endings
+        RegexpMacro(r"(?<!\\)%.*[\n]",""),
+        RegexpMacro(r"(?<!\\)%.*$",""),
+        RegexpMacro(r"\r",""),
+        # Convert math modes to a smaller subset of completely equivalent things
+        # In particular, we get rid of dollar signs which aren't escapes like \$
+        RegexpMacro(r"(?<!\\)(\$\$)([^$]*[^\\])(\$\$)",r"\\[\2\\]"),
+        RegexpMacro(r"(?<!\\)(\$)([^$]*[^\\])(\$)",r"\\(\2\\)"),
+        RegexpMacro(r"\\begin\s*\n?\s*{equation\*}","\\["),
+        RegexpMacro(r"\\end\s*\n?\s*{equation\*}","\\]"),
+        RegexpMacro(r"\\begin\s*\n?\s*{align\*}",r"\[\\begin{aligned}"),
+        RegexpMacro(r"\\end\s*\n?\s*{align\*}","\\end{aligned}\\]"),
+        RegexpMacro(r"(?<!\\)\\mbox(?!\w)",r"\\text")]
     _system_macros_options = [
     ["system",FixedMacro(["\\bigmath","1","\\(\\displaystyle #1\\)"])],
     ["system",FloatingMacro("\\over","\\frac{#1}{#2}")],
     ["system",FloatingMacro("\\it","#1 \\textit{#2}")],
     ["system",FloatingMacro("\\bf","#1 \\textbf{#2}")],
-    ["system",RegexpMacro(r"(?<!\\)\\mbox(?!\w)",r"\\text")],
     ["offline",FixedMacro(["\\offline","1","#1"])],
     ["online",FixedMacro(["\\online","1","#1"])],
     ["offline",FixedMacro(["\\online","1",""])],
     ["online",FixedMacro(["\\offline","1",""])]
     ]
     _system_macros_default = "system|online|user"
+    _userkey = "user"
 
     def _expand_list(self,data,macrolist):
         loopgoes = 1
@@ -395,40 +411,34 @@ class LaTeXRaw(object):
                 loopgoes = 0
         return data
 
-    def __init__(self,filename,optionlist):
+    def __init__(self,filename,optionlist,verbose):
         self._system_macros = self._system_macros_mandatory
+        self._user_macros = []
+        self._verbose = verbose
         if optionlist is None:
             optionlist = self._system_macros_default
         specified_options = re.split(r"\|",optionlist)
-        print "INFO  : Expanding macros for options " + str(specified_options)
         for macro in self._system_macros_options:
             if macro[0] in specified_options:
                 self._system_macros.append(macro[1])
+
         if filename != "":
             self.srcfilename = os.path.abspath(filename)
         else:
             self.srcfilename = ""
+            self._srccode = ""
+            self.cleaned_source = ""
+            if self._verbose:
+                print("INFO  : New LaTeXQuestions() with macro options " + str(specified_options))
+            return
         latexcode = open(filename,"r").read()
-        self._user_macros = []
+        if self._verbose:
+            print("INFO  : Reading LaTeX document " + filename)
         self._srccode = latexcode
-        # Strip comments; they are absolutely capable of causing problems if left intact
-        # Convert windows line endings
-        latexcode = re.sub(r"(?<!\\)%.*[\n]","",latexcode)
-        latexcode = re.sub(r"(?<!\\)%.*$","",latexcode)
-        latexcode = re.sub(r"\r","",latexcode)
-        # Convert math modes to a smaller subset of completely equivalent things
-        # In particular, we get rid of dollar signs which aren't escapes like \$
-        latexcode = re.sub(r"(?<!\\)(\$\$)([^$]*[^\\])(\$\$)",r"\\[\2\\]",latexcode)
-        latexcode = re.sub(r"(?<!\\)(\$)([^$]*[^\\])(\$)",r"\\(\2\\)",latexcode)
-        latexcode = re.sub(r"\\begin\s*\n?\s*{equation\*}","\\[",latexcode)
-        latexcode = re.sub(r"\\end\s*\n?\s*{equation\*}","\\]",latexcode)
-        latexcode = re.sub(r"\\begin\s*\n?\s*{align\*}",r"\[\\begin{aligned}",latexcode)
-        latexcode = re.sub(r"\\end\s*\n?\s*{align\*}","\\end{aligned}\\]",latexcode)
-
         self.cleaned_source = latexcode
-
-        userkey = "user"
-        if userkey in specified_options:
+        if self._verbose:
+            print("INFO  : Expanding macros for options " + str(specified_options))
+        if self._userkey in specified_options:
             deftype = r"\newcommand"
             pattern = re.compile(re.escape(deftype))
             for m in re.finditer(pattern,latexcode):
@@ -443,16 +453,19 @@ class LaTeXRaw(object):
                 patternstring += "\s*"
                 self.cleaned_source = re.sub(patternstring,"",self.cleaned_source)
         self.cleaned_source = self._expand_list(self.cleaned_source,self._system_macros+self._user_macros)
-        print "INFO  : Expansion complete."
+        if self._verbose:
+            print("INFO  : Expansion complete.")
 
 class QuestionGem(object):
     _question_type_default = "file_upload_question"
-    _internals = ["image","answer","multiplechoice","shortanswer","feedback","praise","comments","notes","keywords","date","qid"]
+    _internals = ["type","image","answer","multiplechoice","shortanswer","comments","praise","feedback","notes","keywords","date","qid"]
     _comma_separated = ["keywords"]
     _choice_provider = ["multiplechoice","shortanswer"]
     _choice_provider_txt = ["shortanswer"]
-    _output_first = ["image"]
-    _question_types = ["file_upload_question","multiple_choice_question","short_answer_question","essay_question","multiple_answers_question"]
+    _output_first = ["type","image"]
+    _question_types = ["file_upload_question","multiple_choice_question","short_answer_question","essay_question"] # Future: "multiple_answers_question"
+    _question_types_short = ["fileupload","multiplechoice","shortanswer","essay"] # Future: "multipleanswers"
+    _question_types_generic = ["fileupload","essay"]
     def __init__(self,latexcode = ""):
         self.bank_title = ""
         self.bank_id = 0
@@ -488,6 +501,7 @@ class QuestionGem(object):
             self.title = starting.group(2)
         else:
             self.title = ""
+        data = ""
         # Now find all the environments of types identified by _internals list
         for envname in self._internals:
             patterndesc = r"\\begin\s*\{" + re.escape(envname) + r"\}\s*(\[([^\]]*)\]\s*)?((.|\n)*?)\s*\\end\s*\{" + re.escape(envname)+ r"\}"
@@ -496,6 +510,12 @@ class QuestionGem(object):
             ressrc = ""
             for result in re.finditer(pattern,latexcode):
                 # First see if you can figure out the type of question it will be
+                if envname == "type":
+                    if result.group(3) not in self._question_types_short:
+                        print(self._question_types_short)
+                        raise Exception("Unknown question type: " + result.group(3) + "\n")
+                    else:
+                        current_type = self._question_types[self._question_types_short.index(result.group(3))]
                 if envname == "multiplechoice":
                     current_type = "multiple_choice_question"
                 elif envname == "shortanswer":
@@ -529,6 +549,8 @@ class QuestionGem(object):
         self.statement = re.sub(r"\n\n+",r"\n\n",self.statement)
         self.statement = re.sub(r"\s*$","",self.statement)
         self.statement = re.sub(r"^\s*","",self.statement)
+        if self._environments[self._internals.index("type")][2] == "":
+            self._environments[self._internals.index("type")][2] = self._question_types_short[self._question_types.index(self.type)]
         # Proces options in _choice_provider environments
         options = []
         corrects = []
@@ -557,7 +579,10 @@ class QuestionGem(object):
         self.all_choices = options
         self.correct_choices = corrects
 
+
     def to_LaTeX(self):
+        if self.type == "short_answer_question":
+            self.correct_choices = self.all_choices
         resultstring = "\\begin{question}"
         if self.title != "":
             resultstring += "[" + self.title + "]"
@@ -571,11 +596,17 @@ class QuestionGem(object):
                     resultstring += "[" + data[1] + "]"
                 resultstring += "\n" + data[2] + "\n\\end{" + envname + "}\n"
         resultstring += self.statement + "\n"
+        shorttype = self._question_types_short[self._question_types.index(self.type)]
+        sometimes_forbidden = ["praise","feedback"]
+        if shorttype in self._question_types_generic:
+            currently_forbidden = True
+        else:
+            currently_forbidden = False
         for envname in self._internals:
-            if envname not in self._output_first:
+            if (envname not in self._output_first) and ((envname not in sometimes_forbidden) or (not currently_forbidden)):
                 index = self._internals.index(envname)
                 data = self._environments[index]
-                if (data[2] != ""):
+                if (data[2] != "") or ((envname == shorttype) and (envname in self._choice_provider)):
                     resultstring += "\\begin{" + envname + "}"
                     if (data[1] != ""):
                         resultstring += "[" + data[1] + "]"
@@ -597,71 +628,10 @@ class QuestionGem(object):
         resultstring += "\\end{question}"
         return resultstring
 
-    def get(self,envname):
-        # Don't be naughty--the get function is for non-volatile things like comments
-        if envname in self._choice_provider:
-            print "WARN  : get(..) is not for accessing choice_providers"
-            return None
-        for envdata in self._environments:
-            if envdata[0] == envname:
-                return envdata[2]
-        return None
-
-    def set(self,envname,latexcontents,latexoption = ""):
-        # Don't be naughty--the get function is for non-volatile things like comments
-        if envname in self._choice_provider:
-            print "WARN  : set(..) is not for accessing choice_providers"
-            return None
-        for index in range(len(self._environments)):
-            if self._environments[index][0] == envname:
-                self._environments[index][1] = latexoption
-                self._environments[index][2] = latexcontents
-                return self._environments[index][2]
-        return latexcontents
-
-    def HTML_statement(self,mathasimg=False):
-        if (self.statement != ""):
-            return LaTeX_to_HTML(self.statement,mathasimg)
-        return ""
-    #def HTML_feedback(self,mathasimg=False):
-    #    rawlatex = self.get("feedback")
-    #    if (rawlatex != ""):
-    #        return LaTeX_to_HTML(rawlatex,mathasimg)
-    #    return ""
-    def HTML_get(self,type,mathasimg=False):
-        rawlatex = self.get(type)
-        if (rawlatex != ""):
-            return LaTeX_to_HTML(rawlatex,mathasimg)
-        return ""
-    #def HTML_praise(self,mathasimg=False):
-    #    rawlatex = self.get("praise")
-    #    if (rawlatex != ""):
-    #        return LaTeX_to_HTML(rawlatex,mathasimg)
-    #    return ""
-    #def HTML_comments(self,mathasimg=False):
-    #    rawlatex = self.get("comments")
-    #    if (rawlatex != ""):
-    #        return LaTeX_to_HTML(rawlatex,mathasimg)
-    #    return ""
-    def HTML_all_choices(self,mathasimg=False):
-        returnlist = []
-        if self._choices_in_txt:
-            return self.all_choices
-        for choice in self.all_choices:
-            returnlist.append(LaTeX_to_HTML(choice,mathasimg))
-        return returnlist
-    def HTML_correct_choices(self,mathasimg=False):
-        returnlist = []
-        if self._choices_in_txt:
-            return self.correct_choices
-        for choice in self.correct_choices:
-            returnlist.append(LaTeX_to_HTML(choice,mathasimg))
-        return returnlist
-
     def append(self,envname,latexcontents,latexoption = ""):
         # Don't be naughty--the get function is for non-volatile things like comments
         if envname in self._choice_provider:
-            print "WARN  : append(..) is not for accessing choice_providers"
+            print("WARN  : append(..) is not for accessing choice_providers")
             return None
         for index in range(len(self._environments)):
             if self._environments[index][0] == envname:
@@ -678,6 +648,87 @@ class QuestionGem(object):
                 return self._environments[index][2]
         return latexcontents
 
+    def get(self,envname):
+        # Don't be naughty--the get function is for non-volatile things like comments
+        if envname in self._choice_provider:
+            print("WARN  : get(..) is not for accessing choice_providers")
+            return None
+        if envname == "title":
+            return self.title
+        if envname == "statement":
+            return self.statement
+        if envname == "all_choices":
+            return self.all_choices
+        if envname == "correct_choices":
+            return self.correct_choices
+        for envdata in self._environments:
+            if envdata[0] == envname:
+                return envdata[2]
+        if envname == "choice_breaks":
+            return self._choicebreakpos
+        print("WARN  : Not sure what " + envname + " is.")
+        return None
+
+    def set(self,envname,latexcontents,latexoption = ""):
+        # Don't be naughty--the get function is for non-volatile things like comments
+        if envname in self._choice_provider:
+            print("WARN  : set(..) is not for accessing choice_providers")
+            return None
+        if envname == "choice_breaks":
+            self._choicebreakpos = latexcontents
+            return latexcontents
+        if envname == "title":
+            self.title = latexcontents
+            return self.title
+        if envname == "statement":
+            self.statement = latexcontents
+            return self.statement
+        if envname == "all_choices":
+            self.all_choices = latexcontents
+            return self.all_choices
+        if envname == "correct_choices":
+            self.correct_choices = latexcontents
+            return self.correct_choices
+        if (envname == "type") and (latexcontents not in self._question_types_short):
+            print("WARN  : Unrecognized question type " + envname + ".")
+            return None
+        if (envname == "type"):
+            self.type = self._question_types[self._question_types_short.index(latexcontents)]
+            return self.type
+        for index in range(len(self._environments)):
+            if self._environments[index][0] == envname:
+                self._environments[index][1] = latexoption
+                self._environments[index][2] = latexcontents
+                return self._environments[index][2]
+        print("WARN: Not sure what " + envname + " is.")
+        return latexcontents
+
+    def HTML_statement(self,mathasimg=False):
+        if (self.statement != ""):
+            return LaTeX_to_HTML(self.statement,mathasimg)
+        return ""
+    def HTML_get(self,type,mathasimg=False):
+        rawlatex = self.get(type)
+        if (rawlatex != ""):
+            return LaTeX_to_HTML(rawlatex,mathasimg)
+        return ""
+    def HTML_all_choices(self,mathasimg=False):
+        returnlist = []
+        if self._choices_in_txt:
+            return self.all_choices
+        for choice in self.all_choices:
+            returnlist.append(LaTeX_to_HTML(choice,mathasimg))
+        return returnlist
+    def HTML_correct_choices(self,mathasimg=False):
+        if self.type == "short_answer_question":
+            self.correct_choices = self.all_choices
+        returnlist = []
+        if self._choices_in_txt:
+            return self.correct_choices
+        for choice in self.correct_choices:
+            returnlist.append(LaTeX_to_HTML(choice,mathasimg))
+        return returnlist
+
     def apply_macro(self,themacro):
         self.statement = themacro.apply_to(self.statement)
         for i in range(len(self._environments)):
@@ -686,7 +737,6 @@ class QuestionGem(object):
         if not self._choices_in_txt:
             for i in range(len(self.all_choices)):
                 self.all_choices[i] = themacro.apply_to(self.all_choices[i])
-                print "Hello"
             for i in range(len(self.correct_choices)):
                 self.correct_choices[i] = themacro.apply_to(self.correct_choices[i])
 
@@ -707,11 +757,16 @@ class LaTeXQuestions(LaTeXRaw):
     _tikz_compile_script = ["pdflatex -interaction=nonstopmode -output-directory [directory] [filename].tex > [filename].cpl","convert -density 250 [filename].pdf -quality 80 -background white -alpha remove -alpha off [filename].png"]
     _tikz_compile_latex_template = r"\documentclass[tikz,margin=5pt]{standalone} \usepackage{amsmath,amssymb,amsfonts} \begin{document} \begin{image} \end{image} \end{document}"
     _tikz_compile_latex_replacement = r"\includegraphics[width=2.5in]{[filename].png}"
-    def __init__(self,filename,options = None):
-        super(LaTeXQuestions,self).__init__(filename,options)
+    def __init__(self,filename = "",verbose = True,options = None):
+        super(LaTeXQuestions,self).__init__(filename,options,verbose)
         self._question_list = []
         self._bank_sizes = [0]
-        self._bank_titles = [""]
+        self._bank_titles = ["Unbanked Questions"]
+        self._questions_selected = []
+        self._open_bank = 0
+        self._selectmode = "reset"
+        if filename == "":
+            return
         remaining_questions = self.cleaned_source
         pattern = re.compile(r"\\begin\{questionbank\}\s*(\[([^\]]*)\]\s*)?\s*((.|\n)*?)\\end\{questionbank\}")
         banks_found = 0
@@ -725,7 +780,8 @@ class LaTeXQuestions(LaTeXRaw):
             else:
                 bank_title = ""
             questionpattern = re.compile(r"\\begin\{question\}(.|\n)*?\\end\{question\}")
-            print "INFO  : Bank " + str(banks_found).zfill(3) + " \"" + bank_title + "\"",
+            if self._verbose:
+                print "INFO  : Bank " + str(banks_found).zfill(3) + " \"" + bank_title + "\"",
             questions_found = 0
             for question in re.finditer(questionpattern,banksrc):
                 questions_found += 1
@@ -733,16 +789,26 @@ class LaTeXQuestions(LaTeXRaw):
                 thisquestion.bank_id = banks_found
                 thisquestion.bank_title = bank_title
                 self._question_list.append(thisquestion)
-            print ": " + str(questions_found) + " questions"
+            if self._verbose:
+                print(": " + str(questions_found) + " questions")
             total_questions += questions_found
             self._bank_sizes.append(questions_found)
-            self._bank_titles.append(bank_title)
+            if bank_title not in self._bank_titles:
+                self._bank_titles.append(bank_title)
+            else:
+                counter = 1
+                newtitle = bank_title + " (" + str(counter) + ")"
+                while newtitle in self._bank_titles:
+                    counter += 1
+                    newtitle = bank_title + " (" + str(counter) + ")"
+                self._bank_titles.append(bank_title)
         questions_found = 0
         bank_id = 0
         bank_title = "Unbanked Questions"
         banksrc = remaining_questions
         questionpattern = re.compile(r"\\begin\{question\}(.|\n)*?\\end\{question\}")
-        print "INFO  : Unbanked Questions",
+        if self._verbose:
+            print "INFO  : Unbanked Questions",
         questions_found = 0
         for question in re.finditer(questionpattern,banksrc):
             questions_found += 1
@@ -751,12 +817,41 @@ class LaTeXQuestions(LaTeXRaw):
             thisquestion.index_in_bank = questions_found
             thisquestion.bank_title = bank_title
             self._question_list.append(thisquestion)
-        print ":  " + str(questions_found) + " questions"
+        if self._verbose:
+            print(":  " + str(questions_found) + " questions")
         total_questions += questions_found
         self._bank_sizes[0] = questions_found
         self._bank_titles[0] = bank_title
-        print "INFO  : " + str(total_questions) + " found total."
+        if self._verbose:
+            print("INFO  : " + str(total_questions) + " found total.")
         self._questions_selected = range(len(self._question_list))
+
+    def append(self,questionobj,bankno = None):
+        if questionobj == None:
+            print("WARN  : None appended to LaTeXObject")
+            return
+        if bankno == None:
+            bankno = self._open_bank
+        self._question_list.append(copy.deepcopy(questionobj))
+        self._question_list[-1]._expand_list(self,self._system_macros+self._user_macros)
+        self._question_list[-1].bank_id = bankno
+        self._question_list[-1].bank_title = self._bank_titles[bankno]
+        self._question_list[-1].index_in_bank = self._bank_sizes[bankno]
+        self._bank_sizes[bankno] += 1
+        self._questions_selected.append(len(self._question_list)-1)
+
+    def new_bank(self,bank_title = "Unnamed Bank"):
+        self._bank_sizes.append(0)
+        if bank_title not in self._bank_titles:
+            self._bank_titles.append(bank_title)
+        else:
+            counter = 1
+            newtitle = bank_title + " (" + str(counter) + ")"
+            while newtitle in self._bank_titles:
+                counter += 1
+                newtitle = bank_title + " (" + str(counter) + ")"
+            self._bank_titles.append(bank_title)
+        self._open_bank = len(self._bank_sizes) - 1
 
     def expand_list(self,macrolist):
         for i in range(len(self._question_list)):
@@ -768,31 +863,123 @@ class LaTeXQuestions(LaTeXRaw):
     def __getitem__(self,key):
         return self._question_list[self._questions_selected[key]]
 
+    def delete(self,key):
+        del self._question_list[self._questions_selected[key]]
+        oldindex = self._questions_selected[key]
+        del self._questions_selected[key]
+        for index in range(len(self._questions_selected)):
+            if (self._questions_selected[index] > oldindex):
+                self._questions_selected[index] -= 1
+        return self
+    def random_question(self,killit=True):
+        if len(self._questions_selected) == 0:
+            return None
+        index = random.randint(0,len(self._questions_selected)-1)
+        thisq = copy.deepcopy(self[index])
+        if killit == True:
+            self.delete(index)
+        return thisq
+
     def __setitem__(self,key,value):
         self._question_list[self._questions_selected[key]] = value
         return self._question_list[self._questions_selected[key]]
 
+    def questions_set(self,envname,content):
+        for dummyindex in range(len(self._questions_selected)):
+            self._question_list[self._questions_selected[dummyindex]].set(envname,content)
+    def questions_append(self,envname,content):
+        for dummyindex in range(len(self._questions_selected)):
+            self._question_list[self._questions_selected[dummyindex]].append(envname,content)
+    def questions_get(self,envname):
+        results = []
+        for dummyindex in range(len(self._questions_selected)):
+            results.append(self._question_list[self._questions_selected[dummyindex]].get(envname))
+        return results
     def select_all(self):
         self._questions_selected = range(len(self._question_list))
+        return self
     def deselect_all(self):
         self._questions_selected = []
+        return self
+    def select_mode(self,modestring):
+        self._selectmode = modestring
+        # Possibilities are reset,increasing,decreasing
+    def _possible_selections(self):
+        if self._selectmode == "reset":
+            return range(len(self._question_list))
+        if self._selectmode == "increasing":
+            result = []
+            for index in range(len(self._question_list)):
+                if index not in self._questions_selected:
+                    result.append(index)
+            return result
+        if self._selectmode == "decreasing":
+            return self._questions_selected
+        return None
+    def _update_selections(self,selectarray):
+        if self._selectmode == "reset":
+            self._questions_selected = selectarray
+        if self._selectmode == "increasing":
+            self._questions_selected = self._questions_selected + selectarray
+            self._questions_selected.sort()
+        if self._selectmode == "decreasing":
+            self._questions_selected = selectarray
+        return self._questions_selected
+
     def select_by_bank_id(self,bank_id):
+        result = []
+        possible = self._possible_selections()
         if bank_id >= len(self._bank_sizes):
             raise Exception("select_by_bank_id called on a non-existent bank.")
-        for index in range(len(self._question_list)):
-            if self._question_list[index].bank_id == bank_id and index not in self._questions_selected:
-                self._questions_selected.append(index)
+        for index in possible:
+            if self._question_list[index].bank_id == bank_id:
+                result.append(index)
+        self._update_selections(result)
+        return self
     def select_by_search(self,itemname,itemval):
-        for index in range(len(self._question_list)):
-            if re.search(itemval,self._question_list[index].get(itemname)) and index not in self._questions_selected:
-                self._questions_selected.append(index)
-    def keep_by_search(self,itemname,itemval):
-        remaining = []
-        for index in range(len(self._questions_selected)):
-            trueindex = self._questions_selected[index]
-            if re.search(itemval,self._question_list[trueindex].get(itemname)):
-                remaining.append(trueindex)
-        self._questions_selected = remaining
+        result = []
+        possible = self._possible_selections()
+        for index in possible:
+            if re.search(itemval,self._question_list[index].get(itemname)):
+                result.append(index)
+        self._update_selections(result)
+        return self
+    def select_by_rules(self,rulelist):
+        result = []
+        possible = self._possible_selections()
+        for index in possible:
+            keepit = True
+            for rule in rulelist:
+                if len(rule) == 3:
+                    envname = rule[0]
+                    content = rule[1]
+                    find_st = rule[2]
+                else:
+                    envname = "keywords"
+                    content = rule[0]
+                    if (len(rule) == 2):
+                        find_st = rule[1]
+                    else:
+                        find_st = True
+                if re.search(content,self._question_list[index].get(envname)):
+                    found = True
+                else:
+                    found = False
+                if found != find_st:
+                    keepit = False
+                    break
+            if keepit == True:
+                result.append(index)
+        self._update_selections(result)
+        return self
+    # def keep_by_search(self,itemname,itemval):
+    #     remaining = []
+    #     for index in range(len(self._questions_selected)):
+    #         trueindex = self._questions_selected[index]
+    #         if re.search(itemval,self._question_list[trueindex].get(itemname)):
+    #             remaining.append(trueindex)
+    #     self._questions_selected = remaining
+    #     return self
 
     def merge_duplicates(self,other):
         other_nonduplicates = []
@@ -805,7 +992,7 @@ class LaTeXQuestions(LaTeXRaw):
                     oldbank_title = alreadyhave.bank_title
                     oldbank_id = alreadyhave.bank_id
                     oldbank_index = alreadyhave.index_in_bank
-                    self._question_list[alreadyhaveindex] = question
+                    self._question_list[alreadyhaveindex] = copy.deepcopy(question)
                     self._question_list[alreadyhaveindex].bank_title = oldbank_title
                     self._question_list[alreadyhaveindex].bank_id = oldbank_id
                     self._question_list[alreadyhaveindex].index_in_bank = oldbank_index
@@ -817,6 +1004,75 @@ class LaTeXQuestions(LaTeXRaw):
                 other_nonduplicates.append(questionindex)
         other._questions_selected = other_nonduplicates
 
+    def random_choice_reduction(self,totalopts=6,seedwith="gamma"):
+        random.seed(seedwith)
+        howmany = {}
+        for index in range(totalopts):
+            howmany[index] = 0
+        myquestions = range(len(self._question_list))
+        random.shuffle(myquestions)
+        deferred = []
+        for index in myquestions:
+            thisquestion = self._question_list[index]
+            if (len(thisquestion.all_choices) > totalopts) and (len(thisquestion.correct_choices) == 1):
+                whereami = thisquestion.all_choices.index(thisquestion.correct_choices[0])
+                maxindexposs = whereami
+                if (maxindexposs >= totalopts):
+                    maxindexposs = totalopts - 1
+                minindexposs = - len(thisquestion.all_choices) + totalopts + whereami
+                if (minindexposs < 0):
+                    minindexposs = 0
+                if (maxindexposs - minindexposs + 1 >= totalopts - 1):
+                    deferred.append(index)
+                else:
+                    countsofar = None
+                    for look in range(minindexposs,maxindexposs+1):
+                        if countsofar is None:
+                            countsofar = howmany[look]
+                        elif howmany[look] < countsofar:
+                            countsofar = howmany[look]
+                    feasibles = []
+                    for look in range(minindexposs,maxindexposs+1):
+                        if howmany[look] <= countsofar + 1:
+                            feasibles.append(look)
+                    randno = random.randint(0,len(feasibles)-1)
+                    mynewindex = feasibles[randno]
+                    howmany[mynewindex] += 1
+                    cuttingoff = whereami - mynewindex
+                    retained = []
+                    for offset in range(totalopts):
+                        retained.append(thisquestion.all_choices[offset+cuttingoff])
+                    self._question_list[index].all_choices = retained
+        for index in deferred:
+            thisquestion = self._question_list[index]
+            whereami = thisquestion.all_choices.index(thisquestion.correct_choices[0])
+            maxindexposs = whereami
+            if (maxindexposs >= totalopts):
+                maxindexposs = totalopts - 1
+            minindexposs = - len(thisquestion.all_choices) + totalopts + whereami
+            if (minindexposs < 0):
+                minindexposs = 0
+            countsofar = None
+            for look in range(minindexposs,maxindexposs+1):
+                if countsofar is None:
+                    countsofar = howmany[look]
+                elif howmany[look] < countsofar:
+                    countsofar = howmany[look]
+            feasibles = []
+            for look in range(minindexposs,maxindexposs+1):
+                if howmany[look] <= countsofar:
+                    feasibles.append(look)
+            randno = random.randint(0,len(feasibles)-1)
+            mynewindex = feasibles[randno]
+            howmany[mynewindex] += 1
+            cuttingoff = whereami - mynewindex
+            retained = []
+            for offset in range(totalopts):
+                retained.append(thisquestion.all_choices[offset+cuttingoff])
+            self._question_list[index].all_choices = retained
+        if self._verbose:
+            print "INFO  : Results of random_choice_reduction"
+            print howmany
 
     def total_banks(self):
         return len(self._bank_sizes)
@@ -826,7 +1082,8 @@ class LaTeXQuestions(LaTeXRaw):
         return self._bank_titles[bank_id]
 
     def tikz_compile(self):
-        print "INFO  : Compiling tikzpicture environments to image files"
+        if self._verbose:
+            print("INFO  : Compiling tikzpicture environments to image files")
         _tikz_compile_directory = os.path.join(os.path.dirname(os.path.abspath(self.srcfilename)),self._tikz_compile_local_directory)
         namepart = re.sub(r"\.[^.]*$","",os.path.basename(self.srcfilename))
         if not os.path.exists(_tikz_compile_directory):
@@ -856,18 +1113,8 @@ class LaTeXQuestions(LaTeXRaw):
         outsrc = "\\documentclass{article}\n\usepackage{questions}\n"
         for macro in self._user_macros:
             outsrc += macro.to_LaTeX() + "\n"
-        outsrc += "\\begin{document}\n"
-        for questionno in self._questions_selected:
-            question = self._question_list[questionno]
-            outsrc += question.to_LaTeX() + "\n"
-        outsrc += "\\end{document}"
-        return outsrc
-
-    def write_LaTeX(self,filename):
-        outsrc = "\\documentclass{article}\n\usepackage{questions}\n"
-        for macro in self._user_macros:
-            outsrc += macro.to_LaTeX() + "\n"
-        outsrc += "\\begin{document}\n"
+        outsrc += "\\usepackage{fullpage}\n"
+        therest = ""
         banktexts = {}
         for questionno in self._questions_selected:
             question = self._question_list[questionno]
@@ -876,19 +1123,28 @@ class LaTeXQuestions(LaTeXRaw):
             banktexts[question.bank_id] += question.to_LaTeX() + "\n"
 
         for bank in banktexts:
-            outsrc += banktexts[bank] + "\\end{questionbank}"
-        outsrc += "\\end{document}"
-        open(filename,"w").write(outsrc)
+            therest += banktexts[bank] + "\\end{questionbank}\n"
+        therest += "\\end{document}"
+        if re.search("\{tikzpicture\}",therest):
+            outsrc += "\\usepackage{tikz}\n\\begin{document}\n" + therest
+        else:
+            outsrc += "\\begin{document}\n" + therest
+        return outsrc
+
+    def write_LaTeX(self,filename):
+        if self._verbose:
+            print("INFO  : Writing " + filename + " as LaTeX document")
+        open(filename,"w").write(self.to_LaTeX())
 
 
     def write_QTI(self,filename = "",banktitle="Unnamed Bank",mathasimg = False):
         if len(self._questions_selected) == 0:
-            print "INFO  : No questions selected for output."
+            print("INFO  : No questions selected for output.")
             return
         myqti = imsqtiwriter.QTI_initialize()
         bankformalident = banktitle
         if filename != "":
-            bankformalident = filename + " " + bankformalident
+            bankformalident = bankformalident + " from " + filename
         mybank = imsqtiwriter.QTI_new_bank(myqti,bankformalident,banktitle)
         other_resources = []
         for index in range(len(self)):
@@ -925,7 +1181,8 @@ class LaTeXQuestions(LaTeXRaw):
             filename = givenname + ".zip"
         basename = os.path.splitext(os.path.basename(filename))[0]
         xmlname = basename + "_qti.xml"
-        print "INFO  : Writing " + filename
+        if self._verbose:
+            print("INFO  : Writing " + filename + " as QTI zip file")
         tinyfile = zipfile.ZipFile(filename,"w")
         tinyfile.writestr(xmlname,imsqtiwriter.QTI_generate_XML(myqti))
         tinyfile.writestr("imsmanifest.xml",imsqtiwriter.QTI_generate_manifest("autogenerated",basename,xmlname,other_resources))
@@ -983,7 +1240,8 @@ class LaTeXQuestions(LaTeXRaw):
             filename = givenname + ".zip"
         basename = os.path.splitext(os.path.basename(filename))[0]
         xmlname = basename + "_qti.xml"
-        print "INFO  : Writing " + filename
+        if self._verbose:
+            print("INFO  : Writing " + filename + " as QTI with banks.")
         tinyfile = zipfile.ZipFile(filename,"w")
         tinyfile.writestr(xmlname,imsqtiwriter.QTI_generate_XML(myqti))
         tinyfile.writestr("imsmanifest.xml",imsqtiwriter.QTI_generate_manifest("autogenerated",basename,xmlname,other_resources))
@@ -992,36 +1250,3 @@ class LaTeXQuestions(LaTeXRaw):
             tinyfile.write(wheretofind,file)
         tinyfile.close()
         self._questions_selected = old_selection
-
-
-
-
-rawquestion = QuestionGem()
-rawquestion.set("feedback","This is the feedback")
-rawquestion.statement = "This is the statement"
-rawquestion.type = "multiple_choice_question"
-rawquestion.all_choices = ["First choice"]
-print rawquestion.to_LaTeX()
-quit()
-# Currently ._environments does try to see if a  _choice_provider has source.
-
-file = LaTeXQuestions("handbank.tex")
-file.tikz_compile()
-file.write_LaTeX("result.tex")
-file.write_QTI_in_banks("bigtest.zip",True)
-
-
-for bankid in range(file.total_banks()):
-    file.deselect_all()
-    file.select_by_bank_id(bankid)
-    file.tikz_compile()
-    newname = re.sub(" ","_",file.bank_title(bankid)) + ".zip"
-    newname = re.sub("[:,]","",newname)
-    file.write_QTI(newname,file.bank_title(bankid))
-
-
-file.deselect_all()
-file.select_by_search("keywords","sequence convergence|ODEs")
-#file.select_by_bank_id(17)
-file.tikz_compile()
-#file[0].append("keywords","it works")

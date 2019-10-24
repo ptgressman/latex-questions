@@ -41,6 +41,14 @@ def QTI_add_question(mybank,megaquestion):
     title = megaquestion[0][3]
     question_type = megaquestion[0][4]
     statement = megaquestion[0][5]
+
+    if (question_type == "essay_question") or (question_type == "file_upload_question"):
+        megaquestion[3][1] = "" #No praise for correct
+        megaquestion[3][2] = "" #No feedback for incorrect
+
+    if (question_type == "multiple_choice_question") and (len(megaquestion[2]) > 1):
+        question_type = "multiple_answers_question"
+
     item = QT.SubElement(mybank,"item")    # Create Question
     item.set("ident",ident)                # Question ID
     item.set("title",title)                # Question Title
@@ -69,10 +77,13 @@ def QTI_add_question(mybank,megaquestion):
     itemstatement = QT.SubElement(presmat,"mattext")
     itemstatement.set("texttype","text/html")
     itemstatement.text = statement        #This is where the question content goes
-    if question_type=="multiple_choice_question":
+    if question_type=="multiple_choice_question" or question_type == "multiple_answers_question":
         respstuff1 = QT.SubElement(present,"response_lid")
         respstuff1.set("ident","response1")
-        respstuff1.set("rcardinality","Single")
+        cardinality = "Single"
+        if question_type == "multiple_answers_question":
+            cardinality = "Multiple"
+        respstuff1.set("rcardinality",cardinality)
         itemchoices = QT.SubElement(respstuff1,"render_choice") #
         for responseitem in megaquestion[1]:
             responder1 = QT.SubElement(itemchoices,"response_label")# Start here and repeat for all answers
@@ -81,7 +92,7 @@ def QTI_add_question(mybank,megaquestion):
             responder3 = QT.SubElement(responder2,"mattext")        #
             responder3.set("texttype","text/html")                  #
             responder3.text = responseitem[1]                       # End here repeat for all answers
-    elif question_type=="short_answer_question":
+    elif question_type=="short_answer_question" or question_type == "essay_question":
         respstuff1 = QT.SubElement(present,"response_str")
         respstuff1.set("ident","response1")
         respstuff1.set("rcardinality","Single")
@@ -112,16 +123,31 @@ def QTI_add_question(mybank,megaquestion):
     givepoints = QT.SubElement(action0,"respcondition")
     givepoints.set("continue","No")
     givepoints1 = QT.SubElement(givepoints,"conditionvar")
-
     if (question_type=="multiple_choice_question"):
+        if len(megaquestion[2]) == 0:
+            raise Exception("Multiple Choice Question " + title + " has no correct answers")
         itemcorrect = QT.SubElement(givepoints1,"varequal")
         itemcorrect.set("respident","response1")            #   Do once for multiple choice, text is ident of
-        itemcorrect.text = megaquestion[2][0]               #   correct answer
+        itemcorrect.text = megaquestion[2][0]                  #   correct answer
     elif question_type=="short_answer_question":
         for responseitem in megaquestion[1]:
             itemcorrect = QT.SubElement(givepoints1,"varequal") #   Repeat for short answer, text is correct entry texts
             itemcorrect.set("respident","response1")
             itemcorrect.text = responseitem[1]
+    elif question_type == "essay_question":
+        itemcorrect = QT.SubElement(givepoints1,"other")
+    if (question_type=="multiple_answers_question"):
+        givepoints1 = QT.SubElement(givepoints1,"and")
+        for responseitem in megaquestion[1]:
+            if responseitem[0] in megaquestion[2]:
+                itemcorrect = QT.SubElement(givepoints1,"varequal")
+                itemcorrect.set("respident","response1")
+                itemcorrect.text = responseitem[0]
+            else:
+                negated = QT.SubElement(givepoints1,"not")
+                itemcorrect = QT.SubElement(negated,"varequal")
+                itemcorrect.set("respident","response1")
+                itemcorrect.text = responseitem[0]
     givepoints2 = QT.SubElement(givepoints,"setvar")
     givepoints2.set("action","Set")
     givepoints2.set("varname","SCORE")
