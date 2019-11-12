@@ -1,7 +1,6 @@
 \ProvidesPackage{questions}
 \RequirePackage{amsmath}
 \RequirePackage{amssymb}
-\RequirePackage{wrapfig}
 \RequirePackage{etex}
 \RequirePackage{environ}
 \RequirePackage{refcount}
@@ -15,14 +14,14 @@
 \newdimen\questiongapmin
 \newdimen\bankgapmin
 
- \setlength{\choicegapmin}{12pt}		%Minimum horizontal space between multchoice responses
+\setlength{\choicegapmin}{12pt}		%Minimum horizontal space between multchoice responses
 \setlength{\choiceskipleft}{0pt}			%Left side indentation for multchoice responses
 \setlength{\choiceskiptop}{5pt}			%Vertical gap between question statement and multchoice responses
 \setlength{\choicelinespace}{5pt}		%Vertical spacing between multiple lines of multchoice responeses
-\setlength{\questiongapmin}{36pt}		%Minimum vertical spacing between different questions
+\setlength{\questiongapmin}{12pt}		%Minimum vertical spacing between different questions
 \setlength{\bankgapmin}{24pt}
 
-
+\newif\ifshow@frame\show@framefalse
 \newif\ifshow@answers\show@answerstrue
 \newif\ifshow@qlabels\show@qlabelstrue
 \newif\ifshow@feedbacklabels\show@feedbacklabelstrue
@@ -32,6 +31,12 @@
 \newif\ifshow@online\show@onlinetrue
 \newif\ifshow@offline\show@offlinetrue
 \newif\ifshow@onofflabel\show@onofflabeltrue
+\newif\iflabel@mc\label@mctrue
+\newif\ifnew@internals\new@internalstrue
+
+\DeclareOption{frame}{
+\show@frametrue
+}
 
 \DeclareOption{exam}{				% option "exam" puts each question on its own page and suppresses
 \show@answersfalse				% all content except for the question itself (i.e., no correct answers,
@@ -68,7 +73,7 @@
 \newcommand{\online}[1]{\ignorespaces}
 \fi
 \ifshow@offline
-\newcommand{\offline}[1]{{\ifshow@onofflabel{\textbf{[Offline:}~}\fi{#1}\ifshow@onofflabel\textbf{]}\fi}}
+\newcommand{\offline}[1]{{\ifshow@onofflabel{\textbf{[Offline:} }\fi{#1}\ifshow@onofflabel\textbf{]}\fi}}
 \else
 \newcommand{\offline}[1]{\ignorespaces}
 \fi
@@ -85,15 +90,80 @@
 \newenvironment{questionbank}[1][NoTitle]{\par\bgroup\ifshow@qlabels\noindent\textbf{\Large Question Bank: #1}\par\vspace{\bankgapmin}\fi\setcounter{bank@questionno}{0}}{\egroup\par\newpage}
 
 
+\ifnew@internals
+\newdimen{\qboxsep}
+\newdimen{\qdepth}
+\newdimen{\qimagesep}
+\setlength{\qboxsep}{1pt}
+\setlength{\qimagesep}{10pt}
+\setlength{\fboxsep}{\qboxsep}
+\newdimen{\netqboxwidth}
+
+\xdef\has@image{Y}
+\environbodyname\newimagebody
+\NewEnviron{image}{\global\let\image@content\newimagebody\xdef\accompanying@image{Y}}
+\newenvironment{tikztop}[1][]%
+{\tikz[baseline={([yshift={-\ht\strutbox}]current bounding box.north)},#1]\bgroup}%
+{\egroup}
+
+\environbodyname\newtypebody
+\NewEnviron{type}{\xdef\type@content{\newtypebody}}
+
+\environbodyname\newquestionbody
+\NewEnviron{simplequestion}[1][NoTitle]{%
+\setlength{\netqboxwidth}{\dimexpr\textwidth - \qboxsep - \qboxsep -\qboxsep\relax}%
+\xdef\accompanying@image{}%
+\xdef\image@content{}%
+\xdef\type@content{}%
+\newbox\qimage@box%
+\newbox\throwaway@box%
+\setbox\throwaway@box\vbox{\newquestionbody}%
+\setbox\qimage@box\vtop{\hbox{}\vspace{-10pt}\hbox{\image@content}}%
+\stepcounter{bank@questionno}\ifseparate@pages\newpage\fi%\marginpar{\raggedleft\noindent\arabic{bank@questionno}.}
+\noindent%
+\ifshow@frame\fbox{\fi%
+\vbox{\hsize=\netqboxwidth%
+\ifshow@qlabels\hbox to \netqboxwidth {\arabic{bank@questionno}. \textbf{\fbox{#1} \hfill \type@content}}\fi%
+\hbox to \netqboxwidth{%
+\vtop{\hsize=\wd\qimage@box\parindent=0pt\usebox\qimage@box}%
+\hfill%
+\vtop{\ifx\accompanying@image\has@image\hsize=\dimexpr\netqboxwidth - \wd\qimage@box -\qimagesep\relax\else\hsize=\netqboxwidth\fi{}\parindent=0pt%
+\ifshow@qlabels\else\arabic{bank@questionno}. \fi%
+\newquestionbody\par\global\qdepth=\prevdepth}%
+}
+%%%\hbox to \netqboxwidth{%
+%%%\vtop{\hsize=\netqboxwidth{}\parindent=0pt{}\prevdepth=\qdepth a a a a a a a a a a a a a  this is some content \hfil a a a a a a a a a a a a a a a a 
+%%%a a a a a a a a a a a a a a a a a a a a a a a a   a a a a a a a a a a a a a a a a \par
+%%%}%
+%%%}%
+}%
+\ifshow@frame}\fi%
+\par\pagebreak[3]\vspace{\questiongapmin}\vfill
+}
+\else
+\RequirePackage{wrapfig}
 \newenvironment{simplequestion}[1][NoTitle]{\filbreak\par\stepcounter{bank@questionno}\setlength{\intextsep}{0pt}\ifseparate@pages\newpage\fi\par\bgroup\noindent\marginpar{\raggedleft\noindent\arabic{bank@questionno}.}\ifshow@qlabels\fbox{\textbf{Title:} #1}\par\noindent\noindent\fi\begin{minipage}[t]{\textwidth}
 \ignorespaces\ignorespaces}{\end{minipage}
 \egroup\par\pagebreak[3]\vspace{\questiongapmin}\vfill}
+
+\ifshow@qlabels
+\newenvironment{type}{\par\vspace{-19pt}\hfill{\bf Type:~}}{\par\vspace{6pt}}
+\else
+\NewEnviron{type}{}{}
+\fi
+\def\image{\vspace{-1.6\baselineskip}\wrapfigure{l}{0pt}}
+\def\endimage{\endwrapfigure \par \vspace{\baselineskip}}
+\fi
 
 
 \newenvironment{multiplechoice}
 {\vspace{\choiceskiptop}%
 \setcounter{mc@choicenumber}{0}%
 \par\lineskip=\choicelinespace\setlength{\leftskip}{\choiceskipleft}\noindent\ignorespaces}{\egroup\par}
+\newenvironment{multiplechoice*}
+{\vspace{\choiceskiptop}%
+\setcounter{mc@choicenumber}{0}\label@mcfalse%
+\par\lineskip=\choicelinespace\setlength{\leftskip}{\choiceskipleft}\noindent\ignorespaces}{\label@mctrue\egroup\par}
 
 \newenvironment{shortanswer}
 {\vspace{\choiceskiptop}%
@@ -101,14 +171,19 @@
 \par\lineskip=\choicelinespace\setlength{\leftskip}{\choiceskipleft}\noindent\ignorespaces}{\egroup\par}
 
 \def\@mcname{multiplechoice}
+\def\@smcname{multiplechoice*}
 \def\@saname{shortanswer}
 \def\@correct{correct}
 
 \newcommand{\choice}[2][]{%
 \ifnum\value{mc@choicenumber}>0\unskip\egroup\hspace{\choicegapmin}\hfill\mbox\bgroup\else\noindent\mbox\bgroup\fi%
 \stepcounter{mc@choicenumber}%
-\ifx\@mcname\@currenvir\ifshow@answers\def\@comparator{#1}%
-\ifx\@comparator\@correct\textbf{(\alph{mc@choicenumber}*)}~#2\else{(\alph{mc@choicenumber})~#2}\fi\else{(\alph{mc@choicenumber})~#2}\fi\else\ifshow@answers{\bf TextEntry: }#2\fi\fi%
+\ifx\@saname\@currenvir%
+\ifshow@answers{\bf TextEntry: }#2\fi%
+\else%
+\ifshow@answers\def\@comparator{#1}%
+\ifx\@comparator\@correct\textbf{\iflabel@mc(\alph{mc@choicenumber}*)\else(*)\fi}~#2\else{\iflabel@mc(\alph{mc@choicenumber})~\fi#2}\fi\else{\iflabel@mc(\alph{mc@choicenumber})~\fi#2}\fi
+\fi%
 \ignorespaces}
 
  \newcommand{\choicebreak}{\egroup\unskip\newline\bgroup}
@@ -139,19 +214,19 @@
 \NewEnviron{keywords}{}{}
 \fi
 
-\ifshow@qlabels
-\newenvironment{type}{\par\vspace{-19pt}\hfill{\bf Type:~}}{\par\vspace{6pt}}
-\else
-\NewEnviron{type}{}{}
-\fi
+%%%\ifshow@qlabels
+%%%\newenvironment{type}{\par\vspace{-19pt}\hfill{\bf Type:~}}{\par\vspace{6pt}}
+%%%\else
+%%%\NewEnviron{type}{}{}
+%%%\fi
 
 
 \newcommand{\scratchbreak}{\ifis@exam\newpage \hphantom{Howdy} \newpage\fi}
 
 %\newcommand{\tagbankitem}[1]{\noindent Tag:~#1 \hfill}
 
-\def\image{\vspace{-1.6\baselineskip}\wrapfigure{l}{0pt}}
-\def\endimage{\endwrapfigure \par \vspace{\baselineskip}}
+%\def\image{\vspace{-1.6\baselineskip}\wrapfigure{l}{0pt}}
+%\def\endimage{\endwrapfigure \par \vspace{\baselineskip}}
 
 % The code below stores named questions as labelled tokens so that they can be recalled and rendered later
 % by a call to the macro \qref{name}.  To be precise, the contents of the \begin{question}...\end{question}
@@ -169,14 +244,15 @@
   \begin{simplequestion}[#1]\the\toks\numexpr\saved@envtoks+\getrefnumber{#1}\relax\end{simplequestion}
 }
 
+\environbodyname\fullquestion@body
 \NewEnviron{question}[1][]{%
   \refstepcounter{saved@envcount}%
   \if\relax\detokenize{#1}\relax
   \else
     \label{#1}%
   \fi
-  \global\toks\numexpr\saved@envtoks+\value{saved@envcount}\relax=\expandafter{\BODY}%
-  \ifshowq@immediate\begin{simplequestion}[#1]\BODY\end{simplequestion}\fi
+  \global\toks\numexpr\saved@envtoks+\value{saved@envcount}\relax=\expandafter{\fullquestion@body}%
+  \ifshowq@immediate\begin{simplequestion}[#1]\fullquestion@body\end{simplequestion}\fi
 }
 \toks\saved@envtoks={??}
 

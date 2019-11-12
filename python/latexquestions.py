@@ -20,22 +20,30 @@ def bracket_exprs(haystack, tostart=0, toend=0, allowed = [["{"],["}"]],tofind=-
         toend = len(haystack)
     current_working = ""
     brackets_found = []
+    abnormal_open = False
     for c in haystack[tostart:toend:1]:
-        if c in allowed[0] and escape == 0:
-            bdepth += 1
-            if bdepth == 1:
-                current_working = ""
-                juststarted = 1
+        if (c in allowed[0]) and escape == 0:
+            if (c == '{') or (bdepth == 0):
+                if bdepth == 0:
+                    if (c != '{'):
+                        abnormal_open = True
+                    else:
+                        abnormal_open = False
+                bdepth += 1
+                if bdepth == 1:
+                    current_working = ""
+                    juststarted = 1
         elif c in allowed[1] and escape == 0:
-            bdepth -= 1
-            if bdepth == 0:
-                justended = 1
-                newlines = 0
-                brackets_found.append(current_working)
-                if len(brackets_found) == tofind:
+            if (c == '}') or ((bdepth == 1) and (abnormal_open)):
+                bdepth -= 1
+                if bdepth == 0:
+                    justended = 1
+                    newlines = 0
+                    brackets_found.append(current_working)
+                    if len(brackets_found) == tofind:
+                        break
+                if bdepth == -1:
                     break
-            if bdepth == -1:
-                break
         if bdepth == 0 and justended == 0:
             if c == "\n":
                 newlines += 1
@@ -223,6 +231,7 @@ RegexpMacro(r"(?<!\\)\\textbackslash(?!\w)",r"&#92;"),
 RegexpMacro(r"(?<!\\)\\{","&#123;"),RegexpMacro(r"(?<!\\)\\}","&#125;"),
 RegexpMacro(r"\s*\n\s*\n\s*","</" + _HTML_maintag + ">\n<" + _HTML_maintag + ">"),
 RegexpMacro(r"(?<!\\)\\newline(?!\w)",""),
+RegexpMacro(r"(?<!\\)--+","&mdash;"),
 FixedMacro([r"\vspace","1",""])
 ]
 _HTML_diac_latexmk = ["`","'","\"","^","~","=","."]
@@ -265,6 +274,7 @@ RegexpMacro(r"<" + _HTML_maintag + "></" + _HTML_maintag + ">","")
 _HTML_end_macros = [
 RegexpMacro(r"{",""),       # Strip remaining text-mode braces
 RegexpMacro(r"}",""),
+RegexpMacro(r"\\\\","<br>"), #Turn \\ into <br>
 RegexpMacro(r"\\\w*",r""),    # Strip remaining text-mode macro names
 RegexpMacro(r"~"," ")
 ]
@@ -370,6 +380,8 @@ class LaTeXRaw(object):
         RegexpMacro(r"(?<!\\)%.*[\n]",""),
         RegexpMacro(r"(?<!\\)%.*$",""),
         RegexpMacro(r"\r",""),
+        RegexpMacro(r"\\frac\s*(\w|\d)(\w|\d)",r"\\frac{\1}{\2}"),
+        RegexpMacro(r"\\frac\s*(\w|\d)",r"\\frac{\1}"),
         # Convert math modes to a smaller subset of completely equivalent things
         # In particular, we get rid of dollar signs which aren't escapes like \$
         RegexpMacro(r"(?<!\\)(\$\$)([^$]*[^\\])(\$\$)",r"\\[\2\\]"),
@@ -392,7 +404,7 @@ class LaTeXRaw(object):
     _system_macros_default = "system|online|user"
     _userkey = "user"
 
-    def _expand_list(self,data,macrolist):
+    def _expand_list(self,data,macrolist,iterative=True):
         loopgoes = 1
         if len(macrolist) == 0:
             return data
@@ -401,7 +413,7 @@ class LaTeXRaw(object):
             loopgoes = 0
             before = data
             data = macrolist[macronumber].apply_to(data)
-            if (before != data) and (macronumber != 0):
+            if (before != data) and (macronumber != 0) and iterative:
                 macronumber = 0
             else:
                 macronumber += 1
@@ -410,17 +422,32 @@ class LaTeXRaw(object):
             else:
                 loopgoes = 0
         return data
-
+    def read_macros(self,rawtext,reset_my_macros=True):
+        if reset_my_macros:
+            self._user_macros = []
+        deftype = r"\newcommand"
+        pattern = re.compile(re.escape(deftype))
+        for m in re.finditer(pattern,rawtext):
+            guts = bracket_exprs(rawtext,m.end(0),len(rawtext),[["{","["],["}","]"]])
+            self._user_macros.append(FixedMacro(guts))
+    def write_macros(self):
+        retstr = ""
+        for item in self._user_macros:
+            retstr += item.to_LaTeX() + "\n"
+        return retstr
     def __init__(self,filename,optionlist,verbose):
         self._system_macros = self._system_macros_mandatory
         self._user_macros = []
         self._verbose = verbose
+        self._use_these_macros = []
+        additional_system_macros = []
         if optionlist is None:
             optionlist = self._system_macros_default
         specified_options = re.split(r"\|",optionlist)
         for macro in self._system_macros_options:
             if macro[0] in specified_options:
                 self._system_macros.append(macro[1])
+                additional_system_macros.append(macro[1])
 
         if filename != "":
             self.srcfilename = os.path.abspath(filename)
@@ -434,39 +461,42 @@ class LaTeXRaw(object):
         latexcode = open(filename,"r").read()
         if self._verbose:
             print("INFO  : Reading LaTeX document " + filename)
-        self._srccode = latexcode
-        self.cleaned_source = latexcode
         if self._verbose:
             print("INFO  : Expanding macros for options " + str(specified_options))
+        self._srccode = latexcode
+        self.cleaned_source = self._expand_list(latexcode,self._system_macros_mandatory,False)
+        deftype = r"\newcommand"
+        self.read_macros(self.cleaned_source,True)
+        for foundmacro in self._user_macros:
+            if (len(foundmacro) < 2) or (len(foundmacro) > 4):
+                raise Exception("Malformed \\newcommand in file " + self.srcfilename)
+            patternstring = re.escape(deftype)
+            for part in foundmacro._macrodef:
+                patternstring += "\s*[\[{]" + re.escape(part) + "[\]}]"
+            patternstring += "\s*"
+            self.cleaned_source = re.sub(patternstring,"",self.cleaned_source)
         if self._userkey in specified_options:
-            deftype = r"\newcommand"
-            pattern = re.compile(re.escape(deftype))
-            for m in re.finditer(pattern,latexcode):
-                guts = bracket_exprs(latexcode,m.end(0),len(latexcode),[["{","["],["}","]"]])
-                self._user_macros.append(FixedMacro(guts))
-            for foundmacro in self._user_macros:
-                if (len(foundmacro) < 2) or (len(foundmacro) > 4):
-                    raise Exception("Malformed \\newcommand in file " + self.srcfilename)
-                patternstring = re.escape(deftype)
-                for part in foundmacro._macrodef:
-                    patternstring += "\s*[\[{]" + re.escape(part) + "[\]}]"
-                patternstring += "\s*"
-                self.cleaned_source = re.sub(patternstring,"",self.cleaned_source)
-        self.cleaned_source = self._expand_list(self.cleaned_source,self._system_macros+self._user_macros)
+            self._use_these_macros = self._system_macros+self._user_macros
+            one_time_use = additional_system_macros + self._user_macros
+        else:
+            self._use_these_macros = self._system_macros
+            one_time_use = additional_system_macros
+        self.cleaned_source = self._expand_list(self.cleaned_source,one_time_use)
         if self._verbose:
             print("INFO  : Expansion complete.")
 
 class QuestionGem(object):
     _question_type_default = "file_upload_question"
-    _internals = ["type","image","answer","multiplechoice","shortanswer","comments","praise","feedback","notes","keywords","date","qid"]
+    _internals = ["type","image","answer","multiplechoice","multiplechoice*","shortanswer","comments","praise","feedback","notes","keywords","date","qid"]
     _comma_separated = ["keywords"]
-    _choice_provider = ["multiplechoice","shortanswer"]
+    _choice_provider = ["multiplechoice","multiplechoice*","shortanswer"]
     _choice_provider_txt = ["shortanswer"]
     _output_first = ["type","image"]
     _question_types = ["file_upload_question","multiple_choice_question","short_answer_question","essay_question"] # Future: "multiple_answers_question"
     _question_types_short = ["fileupload","multiplechoice","shortanswer","essay"] # Future: "multipleanswers"
     _question_types_generic = ["fileupload","essay"]
     def __init__(self,latexcode = ""):
+        self._backups = []
         self.bank_title = ""
         self.bank_id = 0
         self.index_in_bank = 0
@@ -483,6 +513,7 @@ class QuestionGem(object):
         # Find the first \begin{question} and the first \end{question}
         # The contents are whatever comes in between
         self._choices_in_txt = False
+        self._silent_choices = False
         if latexcode == "":
             for envname in self._internals:
                 self._environments.append([envname,"",""])
@@ -510,6 +541,8 @@ class QuestionGem(object):
             ressrc = ""
             for result in re.finditer(pattern,latexcode):
                 # First see if you can figure out the type of question it will be
+                if envname == "multiplechoice*":
+                    self._silent_choices = True
                 if envname == "type":
                     if result.group(3) not in self._question_types_short:
                         print(self._question_types_short)
@@ -581,6 +614,10 @@ class QuestionGem(object):
 
 
     def to_LaTeX(self):
+        if self._silent_choices:
+            silent_tag = "*"
+        else:
+            silent_tag = ""
         if self.type == "short_answer_question":
             self.correct_choices = self.all_choices
         resultstring = "\\begin{question}"
@@ -596,7 +633,7 @@ class QuestionGem(object):
                     resultstring += "[" + data[1] + "]"
                 resultstring += "\n" + data[2] + "\n\\end{" + envname + "}\n"
         resultstring += self.statement + "\n"
-        shorttype = self._question_types_short[self._question_types.index(self.type)]
+        shorttype = self._question_types_short[self._question_types.index(self.type)] + silent_tag
         sometimes_forbidden = ["praise","feedback"]
         if shorttype in self._question_types_generic:
             currently_forbidden = True
@@ -606,8 +643,9 @@ class QuestionGem(object):
             if (envname not in self._output_first) and ((envname not in sometimes_forbidden) or (not currently_forbidden)):
                 index = self._internals.index(envname)
                 data = self._environments[index]
-                if (data[2] != "") or ((envname == shorttype) and (envname in self._choice_provider)):
-                    resultstring += "\\begin{" + envname + "}"
+                local_silent_tag = ""
+                if (data[2] != "") or ((envname == shorttype) and (envname in self._choice_provider) and (len(self.all_choices) > 0)):
+                    resultstring += "\\begin{" + envname + local_silent_tag + "}"
                     if (data[1] != ""):
                         resultstring += "[" + data[1] + "]"
                     resultstring += "\n"
@@ -624,7 +662,7 @@ class QuestionGem(object):
                             resultstring += "\n"
                     else:
                         resultstring += data[2] + "\n"
-                    resultstring += "\\end{" + envname + "}\n"
+                    resultstring += "\\end{" + envname + local_silent_tag + "}\n"
         resultstring += "\\end{question}"
         return resultstring
 
@@ -664,10 +702,42 @@ class QuestionGem(object):
         for envdata in self._environments:
             if envdata[0] == envname:
                 return envdata[2]
+        if envname == "silent":
+            return self._silent_choices
         if envname == "choice_breaks":
             return self._choicebreakpos
         print("WARN  : Not sure what " + envname + " is.")
         return None
+
+    def backup(self,unique=True):
+        saved_things = ['title','statement','all_choices','correct_choices','silent','choice_breaks']
+        save_image = [copy.deepcopy(self._environments)]
+        for item in saved_things:
+            save_image.append([item,self.get(item)])
+        should_append = True
+        if unique and (len(self._backups) > 0):
+            distinct = False
+            for index in range(len(save_image)):
+                if self._backups[-1][index][1] != save_image[index][1]:
+                    distinct = True
+                    break
+            should_append = distinct
+        if should_append:
+            self._backups.append(save_image)
+        if len(self._backups) > 20:
+            del self._backups[1]
+
+    def restore(self):
+        if len(self._backups) > 0:
+            save_image = self._backups[-1]
+            if len(self._backups) > 1:
+                del self._backups[-1]
+            for index in range(len(save_image)):
+                if index == 0:
+                    self._environments = copy.deepcopy(save_image[0])
+                else:
+                    item = save_image[index]
+                    self.set(item[0],item[1])
 
     def set(self,envname,latexcontents,latexoption = ""):
         # Don't be naughty--the get function is for non-volatile things like comments
@@ -694,12 +764,14 @@ class QuestionGem(object):
             return None
         if (envname == "type"):
             self.type = self._question_types[self._question_types_short.index(latexcontents)]
-            return self.type
         for index in range(len(self._environments)):
             if self._environments[index][0] == envname:
                 self._environments[index][1] = latexoption
                 self._environments[index][2] = latexcontents
                 return self._environments[index][2]
+        if envname == "silent":
+            self._silent_choices = latexcontents
+            return latexcontents
         print("WARN: Not sure what " + envname + " is.")
         return latexcontents
 
@@ -755,7 +827,7 @@ class LaTeXQuestions(LaTeXRaw):
     _tikz_compile_begin_format = ".tex"
     _tikz_compile_local_directory = "img"
     _tikz_compile_script = ["pdflatex -interaction=nonstopmode -output-directory [directory] [filename].tex > [filename].cpl","convert -density 250 [filename].pdf -quality 80 -background white -alpha remove -alpha off [filename].png"]
-    _tikz_compile_latex_template = r"\documentclass[tikz,margin=5pt]{standalone} \usepackage{amsmath,amssymb,amsfonts} \begin{document} \begin{image} \end{image} \end{document}"
+    _tikz_compile_latex_template = r"\documentclass[tikz,margin=5pt]{standalone} \usepackage{pgfplots,amsmath,amssymb,amsfonts} \begin{document} \begin{image} \end{image} \end{document}"
     _tikz_compile_latex_replacement = r"\includegraphics[width=2.5in]{[filename].png}"
     def __init__(self,filename = "",verbose = True,options = None):
         super(LaTeXQuestions,self).__init__(filename,options,verbose)
@@ -832,13 +904,42 @@ class LaTeXQuestions(LaTeXRaw):
             return
         if bankno == None:
             bankno = self._open_bank
-        self._question_list.append(copy.deepcopy(questionobj))
-        self._question_list[-1]._expand_list(self,self._system_macros+self._user_macros)
+        questioncopy = copy.deepcopy(questionobj)
+#        for thismacro in self._use_these_macros:
+#            questioncopy.apply_macro(thismacro)
+        self._question_list.append(questioncopy)
+        self._question_list[-1]._expand_list(self,self._use_these_macros)
         self._question_list[-1].bank_id = bankno
         self._question_list[-1].bank_title = self._bank_titles[bankno]
         self._question_list[-1].index_in_bank = self._bank_sizes[bankno]
         self._bank_sizes[bankno] += 1
         self._questions_selected.append(len(self._question_list)-1)
+
+    def insert(self,key,questionobj,bankno = None):
+        if questionobj == None:
+            print("WARN  : None appended to LaTeXObject")
+            return
+        if bankno == None:
+            bankno = self._open_bank
+        questioncopy = copy.deepcopy(questionobj)
+#        for thismacro in self._use_these_macros:
+#            questioncopy.apply_macro(thismacro)
+        if (key < len(self._questions_selected)):
+            oldindex = self._questions_selected[key]
+            self._question_list.insert(oldindex,questioncopy)
+        else:
+            self._question_list.append(questioncopy)
+            oldindex = len(self._question_list) - 1
+        self._question_list[oldindex]._expand_list(self,self._use_these_macros)
+        self._question_list[oldindex].bank_id = bankno
+        self._question_list[oldindex].bank_title = self._bank_titles[bankno]
+        self._question_list[oldindex].index_in_bank = self._bank_sizes[bankno]
+        self._bank_sizes[bankno] += 1
+        for index in range(len(self._questions_selected)):
+            if self._questions_selected[index] >= oldindex:
+                self._questions_selected[index] += 1
+        self._questions_selected.insert(key,oldindex)
+
 
     def new_bank(self,bank_title = "Unnamed Bank"):
         self._bank_sizes.append(0)
@@ -871,6 +972,7 @@ class LaTeXQuestions(LaTeXRaw):
             if (self._questions_selected[index] > oldindex):
                 self._questions_selected[index] -= 1
         return self
+
     def random_question(self,killit=True):
         if len(self._questions_selected) == 0:
             return None
@@ -1112,7 +1214,8 @@ class LaTeXQuestions(LaTeXRaw):
     def to_LaTeX(self):
         outsrc = "\\documentclass{article}\n\usepackage{questions}\n"
         for macro in self._user_macros:
-            outsrc += macro.to_LaTeX() + "\n"
+            if macro not in self._use_these_macros:
+                outsrc += macro.to_LaTeX() + "\n"
         outsrc += "\\usepackage{fullpage}\n"
         therest = ""
         banktexts = {}
@@ -1126,7 +1229,7 @@ class LaTeXQuestions(LaTeXRaw):
             therest += banktexts[bank] + "\\end{questionbank}\n"
         therest += "\\end{document}"
         if re.search("\{tikzpicture\}",therest):
-            outsrc += "\\usepackage{tikz}\n\\begin{document}\n" + therest
+            outsrc += "\\usepackage{tikz,pgfplots}\n\\begin{document}\n" + therest
         else:
             outsrc += "\\begin{document}\n" + therest
         return outsrc
