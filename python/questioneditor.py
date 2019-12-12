@@ -1,7 +1,7 @@
 import tkinter as tk
-import tkMessageBox
+from tkinter import messagebox
 from tkinter import filedialog
-import ttk
+from tkinter import ttk
 from latexquestions import *
 
 class LaTeXQuestionsWindow(object):
@@ -172,8 +172,9 @@ class LaTeXQuestionsWindow(object):
             self.populate(True)
 
 
-    def populate(self,separator=False):
-        question = self.latexfile[self.latexfileptr]
+    def populate(self,separator=False,question=None):
+        if question is None:
+            question = self.latexfile[self.latexfileptr]
         pieces = ['title','type','statement','image','praise','feedback','comments','keywords','notes','choice_breaks','answer']
         for item in pieces:
             self.set(item,question.get(item))
@@ -234,7 +235,7 @@ class LaTeXQuestionsWindow(object):
         self.myroot.focus_set()
         return
     def save_as_routine(self,extrainfo=None):
-        self.store()
+        self.store(True)
         filename = filedialog.asksaveasfilename(initialdir = self.prevsavedir,title = "Save as",filetypes = (("LaTeX files","*.tex"),("all files","*.*")))
         if filename != "":
             self.prevsavedir = os.path.dirname(filename)
@@ -266,7 +267,7 @@ class LaTeXQuestionsWindow(object):
         self.preview_windows = [wndw]
 
         tempsel = self.latexfile._questions_selected
-        self.store()
+        self.store(True)
         self.latexfile._questions_selected = [self.latexfileptr]
         self.latexfile.write_LaTeX('temptex.tex')
         self.latexfile._questions_selected = tempsel
@@ -360,7 +361,7 @@ class LaTeXQuestionsWindow(object):
                     newind = afterind
                 else:
                     return
-            self.store()
+            self.store(True)
             self.latexfileptr = newind
             self.populate()
         def replaceit():
@@ -475,24 +476,30 @@ class LaTeXQuestionsWindow(object):
         self.myroot.bind("<Command-s>", self.save_as_routine)
         self.myroot.bind("<Command-p>", self.preview)
 
+        def grabit(extrastuff):
+            self.myroot.clipboard_clear()
+            self.myroot.clipboard_append(self.latexfile[self.latexfileptr].to_LaTeX())
+            self.myroot.update()
+        self.myroot.bind("<Command-g>", grabit)
+
         self.myframe = ttk.Frame(root)
         self.myframe.grid(row = 0, column = 0)
         root = self.myframe
 
         ttk.Label(root,text='Title').grid(row = 0, column = 0,sticky='e')
 
-        self.titleobj = tk.Text(root,height=1,width=60,borderwidth=1,relief='sunken',highlightthickness=0,wrap='word',undo=True)
-        self.titleobj.grid(row = 0,column = 1,columnspan=6,sticky='ew')
+        self.titleobj = tk.Text(root,height=1,width=20,borderwidth=1,relief='sunken',highlightthickness=0,wrap='word',undo=True)
+        self.titleobj.grid(row = 0,column = 1,columnspan=5,sticky='ew')
 
         self.prevobj = ttk.Button(root,text='< Prev',command=self.prev_button)
-        self.prevobj.grid(row = 0,column = 7,sticky='ew')
+        self.prevobj.grid(row = 0,column = 6,sticky='ew')
         self.nextobj = ttk.Button(root,text='Next >',command=self.next_button)
-        self.nextobj.grid(row = 0,column = 8,sticky='ew')
+        self.nextobj.grid(row = 0,column = 7,sticky='ew')
 
-        ttk.Button(root,text='Compile',command=self.preview).grid(row=1,column=6,sticky='nsew')
+        ttk.Button(root,text='Compile',command=self.preview).grid(row=1,column=5,sticky='nsew')
 
         self.infobj = ttk.Label(root,text='1 of 1')
-        self.infobj.grid(row=1,column=7)
+        self.infobj.grid(row=1,column=6)
         ttk.Label(root,text='Type').grid(row = 1, column = 1,sticky='e')
         self.typeobj = tk.StringVar(root)
         self.typeoptions = ['','multiplechoice','shortanswer','fileupload','essay']
@@ -503,7 +510,7 @@ class LaTeXQuestionsWindow(object):
         typewdg.grid(row = 1, column = 2,sticky='ew')
         self.selectobj = tk.IntVar(root)
         self.selectobj.set(1)
-        ttk.Checkbutton(root, text="Selected",variable=self.selectobj).grid(row=1, column = 8)
+        ttk.Checkbutton(root, text="Selected",variable=self.selectobj).grid(row=1, column = 7)
 
         self.silentobj = tk.IntVar(root)
         ttk.Checkbutton(root, text="Silent",variable=self.silentobj).grid(row=1, column = 3,sticky='w')
@@ -511,13 +518,14 @@ class LaTeXQuestionsWindow(object):
         def backupq():
             self.store()
             self.latexfile[self.latexfileptr].backup()
+            self.populate()
         def restoreq():
             self.latexfile[self.latexfileptr].restore()
             self.populate()
 
         ttk.Button(root,text='Backup',command=backupq).grid(row=3,column=0,sticky='ew')
         ttk.Button(root,text='Restore',command=restoreq).grid(row=3,column=1,sticky='ew')
-        self.backuplabel=ttk.Label(root,text='remaining: 1')
+        self.backuplabel=ttk.Label(root,text='remaining: 0')
         self.backuplabel.grid(row=3,column=2,sticky='w')
         def deleteq():
             if len(self.latexfile) == 0:
@@ -533,26 +541,34 @@ class LaTeXQuestionsWindow(object):
                 self.latexfileptr = len(self.latexfile) - 1
             self.populate(True)
 
-        def newq():
-            self.store()
+        def newq(extrastuff=None):
+            self.store(True)
             self.latexfile.insert(self.latexfileptr+1,QuestionGem(''))
             self.latexfileptr += 1
             self.populate(True)
         def dupeq():
-            self.store()
+            self.store(True)
             question = copy.deepcopy(self.latexfile[self.latexfileptr])
             self.latexfile.insert(self.latexfileptr+1,question)
             self.latexfileptr += 1
             self.populate(True)
             mytitle = self.get('title') + " copy"
             self.set('title',mytitle)
+        def remapq():
+            self.store(True)
+            tempq = QuestionGem(self.latexfile[self.latexfileptr].to_LaTeX())
+            self.populate(False,tempq)
+            self.store(True)
 
-        ttk.Button(root,text='Delete',command=deleteq).grid(row=3,column=8,sticky='ew')
+        self.myroot.bind("<Command-n>",newq)
+        ttk.Button(root,text='Delete',command=deleteq).grid(row=3,column=7,sticky='ew')
 
         ttk.Button(root,text='New',command=newq).grid(row=3,column=3,sticky='ew')
         ttk.Button(root,text='Duplicate',command=dupeq).grid(row=3,column=4,sticky='ew')
+        ttk.Button(root,text='Remap',command=remapq).grid(row=3,column=5,sticky='ew')
+
         self.notebook = ttk.Notebook(root)
-        self.notebook.grid(row=2,column=0,columnspan=9)
+        self.notebook.grid(row=2,column=0,columnspan=8,sticky='news')
 
         framedata = [['statement'],['image'],['answer'],['praise'],['feedback'],['comments'],['keywords'],['notes']]
         self.frameobjs = []

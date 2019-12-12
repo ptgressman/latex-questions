@@ -1,5 +1,5 @@
 import re,os
-import cgi,urllib
+import html,urllib.parse
 import imsqtiwriter,zipfile
 from datetime import datetime
 import random
@@ -354,8 +354,8 @@ def LaTeX_to_HTML(data,mathasimg = False):
                 else:
                     style = _HTML_math_display
                     math = "UNKNOWN MATH FORMAT"
-                html_escaped = cgi.escape(math)
-                uri = urllib.quote(math)
+                html_escaped = html.escape(math)
+                uri = urllib.parse.quote(math)
                 uri = re.sub(r"%","%25",uri)
                 mathresult = _HTML_math_image
                 mathresult = re.sub(r'style=""',lambda x : style,mathresult)
@@ -389,7 +389,7 @@ class LaTeXRaw(object):
         RegexpMacro(r"\\begin\s*\n?\s*{equation\*}","\\["),
         RegexpMacro(r"\\end\s*\n?\s*{equation\*}","\\]"),
         RegexpMacro(r"\\begin\s*\n?\s*{align\*}",r"\[\\begin{aligned}"),
-        RegexpMacro(r"\\end\s*\n?\s*{align\*}","\\end{aligned}\\]"),
+        RegexpMacro(r"\\end\s*\n?\s*{align\*}",r"\\end{aligned}\\]"),
         RegexpMacro(r"(?<!\\)\\mbox(?!\w)",r"\\text")]
     _system_macros_options = [
     ["system",FixedMacro(["\\bigmath","1","\\(\\displaystyle #1\\)"])],
@@ -520,13 +520,13 @@ class QuestionGem(object):
             return
         starting = re.search(r"\\begin\s*\{question\}\s*(\[([^\]]*)\]\s*)?\s*",latexcode)
         if starting is None:
-            raise Exception("No \\begin{question} here.\nIn " + srcfile +":\n" + self.srccode)
+            raise Exception("No \\begin{question} here.\nIn source:\n" + self.srccode)
         ending  = re.search(r"\s*\\end\s*\{question\}",latexcode)
         raw_ending = re.search(r"\s*\\end\s*\{question\}",self.srccode)
         if ending is None:
-            raise Exception("No \\end{question} here.\nIn " + srcfile +":\n" + self.srccode)
+            raise Exception("No \\end{question} here.\nIn source:\n" + self.srccode)
         if starting.end(0) > ending.start(0):
-            raise Exception("Found \\end{question} before \\begin{question}.\nIn "+ srcfile +":\n" + self.srccode)
+            raise Exception("Found \\end{question} before \\begin{question}.\nIn source:\n" + self.srccode)
         self.statement = latexcode[starting.end(0):ending.start(0)]
         if starting.group(2) is not None:
             self.title = starting.group(2)
@@ -556,7 +556,7 @@ class QuestionGem(object):
                 if envname in self._choice_provider_txt:
                     self._choices_in_txt = True
                 if (self.type != current_type) and (self.type != self._question_type_default):
-                    raise Exception("Conflicting type information.\nIn "+ srcfile +":\n" + self.srccode)
+                    raise Exception("Conflicting type information.\nIn source:\n" + self.srccode)
                 else:
                     self.type = current_type
                 if result.group(2) is not None:
@@ -601,7 +601,7 @@ class QuestionGem(object):
         for m in re.finditer(pattern,data):
             bkts = bracket_exprs(data,m.end(0),len(data))
             if (len(bkts) != 1):
-                raise Exception("Malformed \\choice element.\nIn "+ srcfile +":\n" + self.srccode)
+                raise Exception("Malformed \\choice element.\nIn source:\n" + self.srccode)
             # If the \choice has "correct" or if short answer, note the answer as correct
             if m.group(2):
                 if re.search(r"(?<!\w)correct(?!\w)",m.group(2)) or self.type == "short_answer_question":
@@ -853,7 +853,7 @@ class LaTeXQuestions(LaTeXRaw):
                 bank_title = ""
             questionpattern = re.compile(r"\\begin\{question\}(.|\n)*?\\end\{question\}")
             if self._verbose:
-                print "INFO  : Bank " + str(banks_found).zfill(3) + " \"" + bank_title + "\"",
+                print("INFO  : Bank " + str(banks_found).zfill(3) + " \"" + bank_title + "\"",end='')
             questions_found = 0
             for question in re.finditer(questionpattern,banksrc):
                 questions_found += 1
@@ -880,7 +880,7 @@ class LaTeXQuestions(LaTeXRaw):
         banksrc = remaining_questions
         questionpattern = re.compile(r"\\begin\{question\}(.|\n)*?\\end\{question\}")
         if self._verbose:
-            print "INFO  : Unbanked Questions",
+            print("INFO  : Unbanked Questions",end='')
         questions_found = 0
         for question in re.finditer(questionpattern,banksrc):
             questions_found += 1
@@ -896,7 +896,7 @@ class LaTeXQuestions(LaTeXRaw):
         self._bank_titles[0] = bank_title
         if self._verbose:
             print("INFO  : " + str(total_questions) + " found total.")
-        self._questions_selected = range(len(self._question_list))
+        self._questions_selected = list(range(len(self._question_list)))
 
     def append(self,questionobj,bankno = None):
         if questionobj == None:
@@ -998,7 +998,7 @@ class LaTeXQuestions(LaTeXRaw):
             results.append(self._question_list[self._questions_selected[dummyindex]].get(envname))
         return results
     def select_all(self):
-        self._questions_selected = range(len(self._question_list))
+        self._questions_selected = list(range(len(self._question_list)))
         return self
     def deselect_all(self):
         self._questions_selected = []
@@ -1008,7 +1008,7 @@ class LaTeXQuestions(LaTeXRaw):
         # Possibilities are reset,increasing,decreasing
     def _possible_selections(self):
         if self._selectmode == "reset":
-            return range(len(self._question_list))
+            return list(range(len(self._question_list)))
         if self._selectmode == "increasing":
             result = []
             for index in range(len(self._question_list)):
@@ -1111,7 +1111,7 @@ class LaTeXQuestions(LaTeXRaw):
         howmany = {}
         for index in range(totalopts):
             howmany[index] = 0
-        myquestions = range(len(self._question_list))
+        myquestions = list(range(len(self._question_list)))
         random.shuffle(myquestions)
         deferred = []
         for index in myquestions:
@@ -1173,8 +1173,8 @@ class LaTeXQuestions(LaTeXRaw):
                 retained.append(thisquestion.all_choices[offset+cuttingoff])
             self._question_list[index].all_choices = retained
         if self._verbose:
-            print "INFO  : Results of random_choice_reduction"
-            print howmany
+            print("INFO  : Results of random_choice_reduction: ",end='')
+            print(howmany)
 
     def total_banks(self):
         return len(self._bank_sizes)
@@ -1212,7 +1212,7 @@ class LaTeXQuestions(LaTeXRaw):
                 self._question_list[i].set("image",resultingcode,"")
 
     def to_LaTeX(self):
-        outsrc = "\\documentclass{article}\n\usepackage{questions}\n"
+        outsrc = "\\documentclass{article}\n\\usepackage{questions}\n"
         for macro in self._user_macros:
             if macro not in self._use_these_macros:
                 outsrc += macro.to_LaTeX() + "\n"

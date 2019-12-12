@@ -190,7 +190,7 @@ def QTI_add_question(mybank,megaquestion):
         feedbackstatement.text = megaquestion[3][2]         #
 
 def QTI_generate_XML(myqti):
-    result = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" + QT.tostring(myqti)
+    result = '<?xml version="1.0" encoding="UTF-8"?>\n' + QT.tostring(myqti,encoding='unicode')
     return result
 
 def QTI_generate_manifest(outeridentifier,inneridentifier,local_filename,other_resources):
@@ -215,7 +215,7 @@ def QTI_generate_manifest(outeridentifier,inneridentifier,local_filename,other_r
     QT.SubElement(manifest,"file").set("href",local_filename) # This does matter; repeat for all files
     for m in other_resources:
         QT.SubElement(manifest,"file").set("href",m)
-    result = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" + QT.tostring(packingslip)
+    result = '<?xml version="1.0" encoding="UTF-8"?>\n' + QT.tostring(packingslip,encoding='unicode')
     return result
 
 #Here's a demo implementation
