@@ -1432,16 +1432,16 @@ bool finalize_dosubroutine(DataTree *datapt) {
     return true;
 }
 
-string to_python_list(DataTree *datapt,bool usequotes=true) {
+string to_python_list(DataTree *datapt) {
     DataTree *kid = datapt->first_child();
     string outstring = "[";
     string tempstring;
-    if (kid == datapt) return kid->get_data()->to_common_string(usequotes);
+    if (kid == datapt) return kid->get_data()->to_common_string();
     while(kid != datapt) {
         if (!kid->is_terminal()) {
             tempstring = to_python_list(kid);
         } else {
-            tempstring = kid->get_data()->to_common_string(usequotes);
+            tempstring = kid->get_data()->to_common_string();
         }
         if (outstring != "[") outstring += ",  ";
         outstring += tempstring;

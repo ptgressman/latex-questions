@@ -53,11 +53,10 @@ public:
     string to_string() {return content;}
     string to_name() {return myname;}
     string type() {if (isnumber) {return "number";} else if (isstring) {return "string";} else if (isname) {return "variable";} else {return "data";}}
-    string to_common_string(bool usequotes=true) {
-        string special = "";
-        if (usequotes) special = "\"";
+    string to_common_string() {
+        string special = "\"";
         if (isstring) return special + content + special;
-        if (isnumber) return numerical.to_string();
+        if (isnumber) return numerical.to_sympy_string();
         if (isname) return special + myname + special;
         return "[unknown]";
     }

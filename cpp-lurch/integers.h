@@ -145,11 +145,17 @@ class Number {
         return ::to_string(numerator) + "/" + ::to_string(denominator);
         // return "\\frac{"+::to_string(numerator) + "}{" + ::to_string(denominator) + "}";
     }
+    string to_sympy_string() {
+        reduce();
+        if (denominator == 1) { return ::to_string(numerator); }
+        return "Rational(" + ::to_string(numerator) + "," + ::to_string(denominator) + ")";
+        // return "\\frac{"+::to_string(numerator) + "}{" + ::to_string(denominator) + "}";
+    }
     bool is_integer() {return denominator == 1;}
     bool is_undefined() {return denominator == 0;}
     operator int () {return numerator;}
-    int numerator;
-    int denominator;
+    long numerator;
+    long denominator;
 };
 
 

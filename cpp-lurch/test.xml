@@ -1,0 +1,41 @@
+<all>
+  <ascii name="n">10</ascii>
+  <all> 5 4 3 2 1 </all>
+  <sort name="options" />
+
+  <subroutine name="minvalue_sub">
+    <block name="minvalue">
+      leftvalue  = left * (c1 + left * c2)
+      leftderiv  = c1 + 2 * left * c2
+      rightvalue = right * (c1 + right * c2)
+      rightderiv = c1 + 2 * right * c2
+      minvalue = <min> leftvalue rightvalue </min>
+      <pick>
+          <geq> leftderiv 0 </geq>
+          <leq> rightderiv 0 </leq>
+          <all> minvalue = <min> -c1*c1/(4*c2) minvalue </min> </all>
+      </pick>
+    </block>
+  </subroutine>
+
+
+<whilegood>
+  a = 1
+  gavin = <ordered> 5/2 <ordered> 5/3 "simon" </ordered> 5/4 </ordered>
+  <output> <catalog python="true"> a gavin</catalog> \n </output>
+</whilegood>
+0 == 1
+
+  <whilegood>
+    options <pick name="selected" />
+    options <pick name="selected2" />
+    evalminvalue\left = -1
+    evalminvalue\right = 0
+    evalminvalue\c1 = selected
+    evalminvalue\c2 = selected2
+    evalminvalue_sub <dosubroutine static="true" />
+
+    <output> selected ":" selected2 "::" evalminvalue\minvalue \n </output>
+  </whilegood>
+
+</all>
