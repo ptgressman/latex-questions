@@ -1116,7 +1116,10 @@ class LaTeXQuestions(LaTeXRaw):
         deferred = []
         for index in myquestions:
             thisquestion = self._question_list[index]
-            if (len(thisquestion.all_choices) > totalopts) and (len(thisquestion.correct_choices) == 1):
+            if (len(thisquestion.all_choices) <= totalopts) and (len(thisquestion.correct_choices) == 1):
+                whereami = thisquestion.all_choices.index(thisquestion.correct_choices[0])
+                howmany[whereami] += 1
+            elif (len(thisquestion.all_choices) > totalopts) and (len(thisquestion.correct_choices) == 1):
                 whereami = thisquestion.all_choices.index(thisquestion.correct_choices[0])
                 maxindexposs = whereami
                 if (maxindexposs >= totalopts):
